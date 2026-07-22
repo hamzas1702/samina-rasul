@@ -1,0 +1,12 @@
+# WordPress Backup & Uploads
+site/wp-content/ai1wm-backups/
+site/wp-content/uploads/
+site/wp-content/upgrade/
+site/wp-content/cache/
+
+# Local Dev Tools (Binaries shouldn't be in Git)
+.tools/
+
+# OS / Editor files
+.DS_Store
+*.log

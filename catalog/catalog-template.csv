@@ -1,0 +1,9 @@
+SKU,Product Name,Category,Collection,Base Price (PKR),Item Options (one per line: Label | price),Sizes (comma-separated),Fabric Upgrades (one per line: Label | added fee),Optional Extras (one per line: Label | added fee),Delivery Time,Description,Image Filenames
+DK-001,,Formals,Dhanak,87500,,"XS, S, M, ML, L, XL, Customized",,,7–8 weeks,,
+DK-002,,Formals,Dhanak,39500,,"XS, S, M, ML, L, XL, Customized",Raw Silk 80gm | 16500,,7–8 weeks,,
+DK-008,,Bridals,Dhanak,120000,,"XS, S, M, ML, L, XL, Customized",,,7–8 weeks,(price never shown on site — Bridals are inquiry-only),
+UJ-003,,Formals,Ujala,,"Combo 1 | 110500
+Combo 2 | 69500
+Combo 3 | 94000
+Combo 4 | 54000","XS, S, M, ML, L, XL, Customized",,,8–9 weeks,(each combo is its own absolute price — name the four combos),
+UJ-009,,Formals,Ujala,(base price needed),,"XS, S, M, ML, L, XL, Customized",,Matching shawl | (fee needed),8–9 weeks,,

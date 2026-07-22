@@ -1,0 +1,33 @@
+name: Deploy to Hostinger
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Install SSH Key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -p ${{ secrets.SSH_PORT }} -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Sync Theme to Hostinger
+        run: |
+          rsync -avz --delete -e "ssh -p ${{ secrets.SSH_PORT }}" \
+          ./site/wp-content/themes/samina-rasul/ \
+          ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/home/u347856177/domains/springgreen-antelope-932724.hostingersite.com/public_html/wp-content/themes/samina-rasul/
+
+      - name: Sync MU-Plugin to Hostinger
+        run: |
+          rsync -avz --delete -e "ssh -p ${{ secrets.SSH_PORT }}" \
+          ./site/wp-content/mu-plugins/samina-core/ \
+          ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/home/u347856177/domains/springgreen-antelope-932724.hostingersite.com/public_html/wp-content/mu-plugins/samina-core/

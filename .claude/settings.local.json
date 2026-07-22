@@ -1,0 +1,37 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker --version)",
+      "Bash(php -v)",
+      "Bash(brew --version)",
+      "Bash(sw_vers)",
+      "Bash(curl -sSL -o php.tar.gz \"https://dl.static-php.dev/static-php-cli/common/php-8.3.13-cli-macos-aarch64.tar.gz\")",
+      "Bash(tar -xzf php.tar.gz)",
+      "Bash(./php -v)",
+      "Bash(./php -m)",
+      "Bash(curl -sSL -o wp-cli.phar https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar)",
+      "Bash(./php wp-cli.phar --version)",
+      "Bash(../.tools/php ../.tools/wp-cli.phar core download --version=latest)",
+      "Bash(../.tools/wp core *)",
+      "Bash(curl -sSL -o /tmp/sqlite-plugin.zip https://downloads.wordpress.org/plugin/sqlite-database-integration.latest-stable.zip)",
+      "Bash(../.tools/php -r '$z=new ZipArchive; $z->open\\(\"/tmp/sqlite-plugin.zip\"\\); $z->extractTo\\(\"wp-content/plugins/\"\\); $z->close\\(\\); echo \"extracted\\\\n\";')",
+      "Bash(../.tools/wp config *)",
+      "Bash(sed -e \"s#{SQLITE_IMPLEMENTATION_FOLDER_PATH}#__DIR__ . '/plugins/sqlite-database-integration'#\" -e \"s#'{SQLITE_MAIN_FILE}'#'sqlite-database-integration/load.php'#\" wp-content/plugins/sqlite-database-integration/db.copy)",
+      "Bash(cp wp-content/plugins/sqlite-database-integration/db.copy wp-content/db.php)",
+      "Bash(../.tools/php -l wp-content/db.php)",
+      "Bash(../.tools/wp rewrite *)",
+      "Bash(../.tools/wp plugin *)",
+      "Bash(curl -sSL -o /tmp/woocommerce.zip https://downloads.wordpress.org/plugin/woocommerce.latest-stable.zip)",
+      "Bash(../.tools/php -r '$z=new ZipArchive; $z->open\\(\"/tmp/woocommerce.zip\"\\); $z->extractTo\\(\"wp-content/plugins/\"\\); $z->close\\(\\); echo \"extracted\\\\n\";')",
+      "Bash(../.tools/wp option *)",
+      "Bash(../.tools/wp eval *)",
+      "Bash(../.tools/wp post *)",
+      "Bash(../.tools/wp eval-file *)",
+      "Bash(../.tools/wp wc *)",
+      "Bash(curl -s -b cookies.txt \"http://localhost:8787/wp-json/wc/store/v1/cart\")",
+      "Bash(../../../../../.tools/php -r '$d=json_decode\\(stream_get_contents\\(STDIN\\),true\\); echo \"items: \".$d[\"items_count\"].\"\\\\n\"; foreach\\($d[\"items\"] as $it\\){echo $it[\"name\"].\" | qty \".$it[\"quantity\"].\" | line total \".$it[\"totals\"][\"line_total\"].\"\\\\n\"; foreach\\($it[\"item_data\"] as $m\\){echo \" - \".$m[\"key\"].\": \".$m[\"value\"].\"\\\\n\";}} echo \"cart total: \".$d[\"totals\"][\"total_price\"].\"\\\\n\";')",
+      "Bash(curl -s \"http://localhost:8787/shop/\")",
+      "Bash(curl -s \"http://localhost:8787/product/dhanak-bridal-dk-008-sample/\")"
+    ]
+  }
+}

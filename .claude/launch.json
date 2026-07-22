@@ -1,0 +1,14 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "wordpress",
+      "runtimeExecutable": "/bin/zsh",
+      "runtimeArgs": [
+        "-c",
+        "export PHP_CLI_SERVER_WORKERS=6; exec '/Users/hamzasultan/Documents/Work/Samina Rasul/.tools/php' -d memory_limit=512M -S localhost:8787 -t '/Users/hamzasultan/Documents/Work/Samina Rasul/site' '/Users/hamzasultan/Documents/Work/Samina Rasul/site/router.php'"
+      ],
+      "port": 8787
+    }
+  ]
+}
