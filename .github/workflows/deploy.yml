@@ -1,33 +1,241 @@
-name: Deploy to Hostinger
+name: Deploy to Hostinger (Staging)
 
 on:
   push:
     branches:
       - main
 
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: staging
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Install SSH Key
+      - name: Inject Build SHA into Theme
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          sed -i "s/{{GITHUB_SHA}}/$GITHUB_SHA/g" ./site/wp-content/themes/samina-rasul/footer.php
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.1
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Configure SSH Alias & known_hosts
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SSH_USER: ${{ secrets.SSH_USER }}
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -p ${{ secrets.SSH_PORT }} -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+          echo "Host hostinger_deploy" > ~/.ssh/config
+          echo "  HostName $SSH_HOST" >> ~/.ssh/config
+          echo "  Port $SSH_PORT" >> ~/.ssh/config
+          echo "  User $SSH_USER" >> ~/.ssh/config
+          echo "  StrictHostKeyChecking accept-new" >> ~/.ssh/config
+          ssh-keyscan -T 10 -p $SSH_PORT -H $SSH_HOST >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Sync Theme to Hostinger
+      - name: Prepare Remote Directories
+        env:
+          REMOTE_PATH: ${{ secrets.REMOTE_PATH }}
         run: |
-          rsync -avz --delete -e "ssh -p ${{ secrets.SSH_PORT }}" \
+          ssh hostinger_deploy "mkdir -p $REMOTE_PATH/wp-content/themes/samina-rasul-backups $REMOTE_PATH/wp-content/mu-plugins/samina-core-backups"
+
+      - name: Sync Theme to Temp Dir
+        env:
+          REMOTE_PATH: ${{ secrets.REMOTE_PATH }}
+        run: |
+          rsync -avz --delete \
+          --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
+          --filter="merge ./.rsync-exclude" \
+          -e "ssh" \
           ./site/wp-content/themes/samina-rasul/ \
-          ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/home/u347856177/domains/springgreen-antelope-932724.hostingersite.com/public_html/wp-content/themes/samina-rasul/
+          hostinger_deploy:$REMOTE_PATH/wp-content/themes/samina-rasul-_deploy/
 
-      - name: Sync MU-Plugin to Hostinger
+      - name: Sync MU-Plugin to Temp Dir
+        env:
+          REMOTE_PATH: ${{ secrets.REMOTE_PATH }}
         run: |
-          rsync -avz --delete -e "ssh -p ${{ secrets.SSH_PORT }}" \
+          rsync -avz --delete \
+          --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
+          --filter="merge ./.rsync-exclude" \
+          -e "ssh" \
           ./site/wp-content/mu-plugins/samina-core/ \
-          ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/home/u347856177/domains/springgreen-antelope-932724.hostingersite.com/public_html/wp-content/mu-plugins/samina-core/
+          hostinger_deploy:$REMOTE_PATH/wp-content/mu-plugins/samina-core-_deploy/
+
+      - name: Execute Zero-Gap Atomic Swap & Safe Rotation
+        env:
+          REMOTE_PATH: ${{ secrets.REMOTE_PATH }}
+        run: |
+          ssh hostinger_deploy "REMOTE_PATH='$REMOTE_PATH' bash -s" <<'EOF'
+            set -e
+            TS=$(date +%s)
+            THEME_DIR="$REMOTE_PATH/wp-content/themes/samina-rasul"
+            MU_DIR="$REMOTE_PATH/wp-content/mu-plugins/samina-core"
+            
+            # Zero-gap swap
+            if [ -d "$THEME_DIR" ]; then mv "$THEME_DIR" "${THEME_DIR}-tmp-old"; fi
+            if [ -d "$THEME_DIR-_deploy" ]; then mv "$THEME_DIR-_deploy" "$THEME_DIR"; fi
+            if [ -d "${THEME_DIR}-tmp-old" ]; then mv "${THEME_DIR}-tmp-old" "$THEME_DIR-backups/samina-rasul-$TS"; fi
+
+            if [ -d "$MU_DIR" ]; then mv "$MU_DIR" "${MU_DIR}-tmp-old"; fi
+            if [ -d "$MU_DIR-_deploy" ]; then mv "$MU_DIR-_deploy" "$MU_DIR"; fi
+            if [ -d "${MU_DIR}-tmp-old" ]; then mv "${MU_DIR}-tmp-old" "$MU_DIR-backups/samina-core-$TS"; fi
+            
+            # Strictly safe rotation using mapfile arrays (no nullglob, no accidental deletion)
+            mapfile -t theme_backups < <(ls -1dt "$THEME_DIR-backups"/samina-rasul-* 2>/dev/null)
+            if [ "${#theme_backups[@]}" -gt 3 ]; then
+              printf '%s\n' "${theme_backups[@]:3}" | xargs -r rm -rf
+            fi
+
+            mapfile -t mu_backups < <(ls -1dt "$MU_DIR-backups"/samina-core-* 2>/dev/null)
+            if [ "${#mu_backups[@]}" -gt 3 ]; then
+              printf '%s\n' "${mu_backups[@]:3}" | xargs -r rm -rf
+            fi
+          EOF
+
+      - name: Flush Cache & Reset OPcache (Forward Path)
+        env:
+          REMOTE_PATH: ${{ secrets.REMOTE_PATH }}
+          LIVE_URL: ${{ secrets.LIVE_URL }}
+          SR_OPCACHE_SECRET: ${{ secrets.SR_OPCACHE_SECRET }}
+        run: |
+          ssh hostinger_deploy "cd $REMOTE_PATH || exit 1; wp cache flush --quiet || true; wp litespeed-purge all --quiet || true"
+
+          echo "Sending forward OPcache reset request..."
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST -H "X-SR-Reset-Token: $SR_OPCACHE_SECRET" "$LIVE_URL/?sr_opcache_reset=1")
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "FAIL: OPcache reset endpoint returned HTTP $HTTP_STATUS. Check mu-plugin loader and wp-config.php secret."
+            exit 1
+          fi
+          echo "OPcache reset successful."
+
+      - name: Comprehensive Health Check (Forward Path)
+        id: health_check
+        env:
+          LIVE_URL: ${{ secrets.LIVE_URL }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          PAGES=("$LIVE_URL/" "$LIVE_URL/product/dhanak-formal-dk-001-sample/" "$LIVE_URL/cart/")
+          BUST="?nocache=$GITHUB_SHA"
+
+          for url in "${PAGES[@]}"; do
+            for i in 1 2 3; do
+              echo "Attempt $i: Checking $url$BUST ..."
+              HTTP_STATUS=$(curl -sL -m 10 -o /tmp/body.txt -w "%{http_code}" "$url$BUST")
+              if [ "$HTTP_STATUS" = "200" ] && grep -q "sr_build_marker: $GITHUB_SHA" /tmp/body.txt; then
+                echo "OK: $url returned 200 and build marker matches."
+                break
+              else
+                echo "WARN: $url failed (HTTP $HTTP_STATUS or marker mismatch). Retrying in 3s..."
+                sleep 3
+              fi
+              if [ $i -eq 3 ]; then
+                echo "FAIL: $url did not pass health check after 3 attempts."
+                exit 1
+              fi
+            done
+          done
+
+      - name: Auto-Rollback on Failure
+        id: rollback
+        if: failure()
+        env:
+          REMOTE_PATH: ${{ secrets.REMOTE_PATH }}
+          LIVE_URL: ${{ secrets.LIVE_URL }}
+          SR_OPCACHE_SECRET: ${{ secrets.SR_OPCACHE_SECRET }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          ROLLBACK_STATUS="UNKNOWN"
+
+          # 1. Execute file rollback
+          set +e
+          ssh hostinger_deploy "REMOTE_PATH='$REMOTE_PATH' bash -s" <<'EOF'
+            set -e
+            THEME_DIR="$REMOTE_PATH/wp-content/themes/samina-rasul"
+            MU_DIR="$REMOTE_PATH/wp-content/mu-plugins/samina-core"
+            
+            LATEST_THEME_BACKUP=$(ls -1t "$THEME_DIR-backups"/samina-rasul-* 2>/dev/null | head -n 1)
+            LATEST_MU_BACKUP=$(ls -1t "$MU_DIR-backups"/samina-core-* 2>/dev/null | head -n 1)
+            
+            if [ -n "$LATEST_THEME_BACKUP" ]; then
+              rm -rf "$THEME_DIR"
+              mv "$LATEST_THEME_BACKUP" "$THEME_DIR"
+            fi
+            if [ -n "$LATEST_MU_BACKUP" ]; then
+              rm -rf "$MU_DIR"
+              mv "$LATEST_MU_BACKUP" "$MU_DIR"
+            fi
+            cd "$REMOTE_PATH" || exit 1
+            wp cache flush --quiet || true
+            wp litespeed-purge all --quiet || true
+          EOF
+          SSH_EXIT_CODE=$?
+          set -e
+
+          if [ $SSH_EXIT_CODE -ne 0 ]; then
+            echo "Rollback file operations failed."
+            ROLLBACK_STATUS="FAILED"
+          else
+            # 2. Reset OPcache (Rollback Path) - STRICT verification
+            echo "Sending rollback OPcache reset request..."
+            HTTP_STATUS_RESET=$(curl -s -o /dev/null -w "%{http_code}" -X POST -H "X-SR-Reset-Token: $SR_OPCACHE_SECRET" "$LIVE_URL/?sr_opcache_reset=1")
+            
+            if [ "$HTTP_STATUS_RESET" != "200" ]; then
+              echo "FAIL: Rollback OPcache reset failed (HTTP $HTTP_STATUS_RESET). Stale cache may be served."
+              ROLLBACK_STATUS="FAILED"
+            else
+              sleep 3
+              # 3. Verify rollback across all critical pages
+              PAGES=("$LIVE_URL/" "$LIVE_URL/product/dhanak-formal-dk-001-sample/" "$LIVE_URL/cart/")
+              # Dynamic cache-buster to prevent CDN/WAF caching across multiple failed deploys
+              BUST="?nocache=rollback_verify_$GITHUB_SHA"
+              
+              ALL_PAGES_OK=true
+              for url in "${PAGES[@]}"; do
+                echo "Verifying rollback on $url$BUST ..."
+                HTTP_STATUS=$(curl -sL -m 10 -o /tmp/rollback_body.txt -w "%{http_code}" "$url$BUST")
+                # If HTTP is not 200, OR the failed build SHA is still present, rollback failed
+                if [ "$HTTP_STATUS" != "200" ] || grep -q "sr_build_marker: $GITHUB_SHA" /tmp/rollback_body.txt; then
+                  echo "FAIL: Rollback verification failed for $url. (HTTP $HTTP_STATUS or marker mismatch)"
+                  ALL_PAGES_OK=false
+                  break
+                fi
+              done
+              
+              if [ "$ALL_PAGES_OK" = true ]; then
+                ROLLBACK_STATUS="SUCCESS"
+              else
+                ROLLBACK_STATUS="FAILED"
+              fi
+            fi
+          fi
+
+          echo "ROLLBACK_STATUS=$ROLLBACK_STATUS" >> $GITHUB_OUTPUT
+
+      - name: Notify on Failure
+        if: failure()
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          ROLLBACK_STATUS: ${{ steps.rollback.outputs.ROLLBACK_STATUS }}
+        run: |
+          if [ "$ROLLBACK_STATUS" = "SUCCESS" ]; then
+            MSG="🚨 **Deployment Failed** to Staging. Auto-rollback executed and verified across all pages. Site is serving previous version."
+          elif [ "$ROLLBACK_STATUS" = "FAILED" ]; then
+            MSG="🚨🚨 **CRITICAL: Deployment Failed AND Rollback Failed.** MANUAL INTERVENTION REQUIRED. Site may be down."
+          else
+            MSG="🚨 **Deployment Failed** pre-swap. Code did not reach production."
+          fi
+          curl -H "Content-Type: application/json" \
+          -X POST \
+          -d "{\"content\": \"$MSG See: https://github.com/hamzas1702/samina-rasul/actions/runs/${{ github.run_id }}\"}" \
+          $DISCORD_WEBHOOK
