@@ -23,7 +23,10 @@ jobs:
         env:
           GITHUB_SHA: ${{ github.sha }}
         run: |
-          sed -i "s/{{GITHUB_SHA}}/$GITHUB_SHA/g" ./site/wp-content/themes/storefront/footer.php
+          sed -i "s/{{GITHUB_SHA}}/$GITHUB_SHA/g" ./site/wp-content/themes/samina-rasul/footer.php
+          echo "Verifying marker injection in footer.php..."
+          # Print the last 5 lines to prove the SHA is actually in the file
+          tail -n 5 ./site/wp-content/themes/samina-rasul/footer.php
 
       - name: Setup SSH
         uses: webfactory/ssh-agent@v0.9.1
@@ -125,7 +128,6 @@ jobs:
           GITHUB_SHA: ${{ github.sha }}
         run: |
           PAGES=("$LIVE_URL/" "$LIVE_URL/product/dhanak-formal-dk-001-sample/" "$LIVE_URL/cart/")
-          # Changed query param to avoid WAF triggers
           BUST="?sr_qa=$GITHUB_SHA"
           UA="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
@@ -137,9 +139,9 @@ jobs:
                 echo "OK: $url returned 200 and build marker matches."
                 break
               else
-                echo "WARN: $url failed (HTTP $HTTP_STATUS or marker mismatch). Response body:"
-                # Dump the body to logs for immediate debugging
-                cat /tmp/body.txt | head -n 20
+                echo "WARN: $url failed (HTTP $HTTP_STATUS or marker mismatch). Response body tail:"
+                # Print the last 20 lines so we can actually see the footer
+                tail -n 20 /tmp/body.txt
                 echo "Retrying in 3s..."
                 sleep 3
               fi
@@ -208,7 +210,7 @@ jobs:
                 HTTP_STATUS=$(curl -sL -m 10 -A "$UA" -o /tmp/rollback_body.txt -w "%{http_code}" "$url$BUST")
                 if [ "$HTTP_STATUS" != "200" ] || grep -q "sr_build_marker: $GITHUB_SHA" /tmp/rollback_body.txt; then
                   echo "FAIL: Rollback verification failed for $url. (HTTP $HTTP_STATUS or marker mismatch)"
-                  cat /tmp/rollback_body.txt | head -n 20
+                  tail -n 20 /tmp/rollback_body.txt
                   ALL_PAGES_OK=false
                   break
                 fi
