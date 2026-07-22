@@ -42,7 +42,6 @@ jobs:
           echo "  Port $SSH_PORT" >> ~/.ssh/config
           echo "  User $SSH_USER" >> ~/.ssh/config
           echo "  StrictHostKeyChecking accept-new" >> ~/.ssh/config
-          ssh-keyscan -T 10 -p $SSH_PORT -H $SSH_HOST >> ~/.ssh/known_hosts 2>/dev/null
 
       - name: Prepare Remote Directories
         env:
