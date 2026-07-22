@@ -23,7 +23,7 @@ jobs:
         env:
           GITHUB_SHA: ${{ github.sha }}
         run: |
-          sed -i "s/{{GITHUB_SHA}}/$GITHUB_SHA/g" ./site/wp-content/themes/samina-rasul/footer.php
+          sed -i "s/{{GITHUB_SHA}}/$GITHUB_SHA/g" ./site/wp-content/themes/storefront/footer.php
 
       - name: Setup SSH
         uses: webfactory/ssh-agent@v0.9.1
