@@ -23,10 +23,10 @@ jobs:
         env:
           GITHUB_SHA: ${{ github.sha }}
         run: |
-          sed -i "s/{{GITHUB_SHA}}/$GITHUB_SHA/g" ./site/wp-content/themes/samina-rasul/footer.php
+          sed -i "s/{{GITHUB_SHA}}/$GITHUB_SHA/g" ./site/wp-content/themes/storefront/footer.php
           echo "Verifying marker injection in footer.php..."
           # Print the last 5 lines to prove the SHA is actually in the file
-          tail -n 5 ./site/wp-content/themes/samina-rasul/footer.php
+          tail -n 5 ./site/wp-content/themes/storefront/footer.php
 
       - name: Setup SSH
         uses: webfactory/ssh-agent@v0.9.1
