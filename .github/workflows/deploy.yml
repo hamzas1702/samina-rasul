@@ -125,17 +125,22 @@ jobs:
           GITHUB_SHA: ${{ github.sha }}
         run: |
           PAGES=("$LIVE_URL/" "$LIVE_URL/product/dhanak-formal-dk-001-sample/" "$LIVE_URL/cart/")
-          BUST="?nocache=$GITHUB_SHA"
+          # Changed query param to avoid WAF triggers
+          BUST="?sr_qa=$GITHUB_SHA"
+          UA="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
           for url in "${PAGES[@]}"; do
             for i in 1 2 3; do
               echo "Attempt $i: Checking $url$BUST ..."
-              HTTP_STATUS=$(curl -sL -m 10 -o /tmp/body.txt -w "%{http_code}" "$url$BUST")
+              HTTP_STATUS=$(curl -sL -m 10 -A "$UA" -o /tmp/body.txt -w "%{http_code}" "$url$BUST")
               if [ "$HTTP_STATUS" = "200" ] && grep -q "sr_build_marker: $GITHUB_SHA" /tmp/body.txt; then
                 echo "OK: $url returned 200 and build marker matches."
                 break
               else
-                echo "WARN: $url failed (HTTP $HTTP_STATUS or marker mismatch). Retrying in 3s..."
+                echo "WARN: $url failed (HTTP $HTTP_STATUS or marker mismatch). Response body:"
+                # Dump the body to logs for immediate debugging
+                cat /tmp/body.txt | head -n 20
+                echo "Retrying in 3s..."
                 sleep 3
               fi
               if [ $i -eq 3 ]; then
@@ -184,7 +189,6 @@ jobs:
             echo "Rollback file operations failed."
             ROLLBACK_STATUS="FAILED"
           else
-            # 2. Reset OPcache (Rollback Path) - Updated to use URL parameter
             echo "Sending rollback OPcache reset request..."
             HTTP_STATUS_RESET=$(curl -s -o /dev/null -w "%{http_code}" "$LIVE_URL/?sr_opcache_reset=1&token=$SR_OPCACHE_SECRET")
             
@@ -193,16 +197,17 @@ jobs:
               ROLLBACK_STATUS="FAILED"
             else
               sleep 3
-              # 3. Verify rollback across all critical pages
               PAGES=("$LIVE_URL/" "$LIVE_URL/product/dhanak-formal-dk-001-sample/" "$LIVE_URL/cart/")
-              BUST="?nocache=rollback_verify_$GITHUB_SHA"
+              BUST="?sr_qa=rollback_verify_$GITHUB_SHA"
+              UA="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
               
               ALL_PAGES_OK=true
               for url in "${PAGES[@]}"; do
                 echo "Verifying rollback on $url$BUST ..."
-                HTTP_STATUS=$(curl -sL -m 10 -o /tmp/rollback_body.txt -w "%{http_code}" "$url$BUST")
+                HTTP_STATUS=$(curl -sL -m 10 -A "$UA" -o /tmp/rollback_body.txt -w "%{http_code}" "$url$BUST")
                 if [ "$HTTP_STATUS" != "200" ] || grep -q "sr_build_marker: $GITHUB_SHA" /tmp/rollback_body.txt; then
                   echo "FAIL: Rollback verification failed for $url. (HTTP $HTTP_STATUS or marker mismatch)"
+                  cat /tmp/rollback_body.txt | head -n 20
                   ALL_PAGES_OK=false
                   break
                 fi
