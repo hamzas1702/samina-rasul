@@ -102,7 +102,7 @@ jobs:
             fi
           EOF
 
-      - name: Flush Cache & Reset OPcache (Forward Path)
+      - name: Flush Cache & Reset OPcache
         env:
           REMOTE_PATH: ${{ secrets.REMOTE_PATH }}
           LIVE_URL: ${{ secrets.LIVE_URL }}
@@ -111,9 +111,9 @@ jobs:
           ssh hostinger_deploy "cd $REMOTE_PATH || exit 1; wp cache flush --quiet || true; wp litespeed-purge all --quiet || true"
 
           echo "Sending forward OPcache reset request..."
-          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST -H "X-SR-Reset-Token: $SR_OPCACHE_SECRET" "$LIVE_URL/?sr_opcache_reset=1")
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$LIVE_URL/?sr_opcache_reset=1&token=$SR_OPCACHE_SECRET")
           if [ "$HTTP_STATUS" != "200" ]; then
-            echo "FAIL: OPcache reset endpoint returned HTTP $HTTP_STATUS. Check mu-plugin loader and wp-config.php secret."
+            echo "FAIL: OPcache reset endpoint returned HTTP $HTTP_STATUS."
             exit 1
           fi
           echo "OPcache reset successful."
@@ -156,10 +156,9 @@ jobs:
         run: |
           ROLLBACK_STATUS="UNKNOWN"
 
-          # 1. Execute file rollback
           set +e
           ssh hostinger_deploy "REMOTE_PATH='$REMOTE_PATH' bash -s" <<'EOF'
-            set -e
+            set -ex
             THEME_DIR="$REMOTE_PATH/wp-content/themes/samina-rasul"
             MU_DIR="$REMOTE_PATH/wp-content/mu-plugins/samina-core"
             
@@ -185,9 +184,9 @@ jobs:
             echo "Rollback file operations failed."
             ROLLBACK_STATUS="FAILED"
           else
-            # 2. Reset OPcache (Rollback Path) - STRICT verification
+            # 2. Reset OPcache (Rollback Path) - Updated to use URL parameter
             echo "Sending rollback OPcache reset request..."
-            HTTP_STATUS_RESET=$(curl -s -o /dev/null -w "%{http_code}" -X POST -H "X-SR-Reset-Token: $SR_OPCACHE_SECRET" "$LIVE_URL/?sr_opcache_reset=1")
+            HTTP_STATUS_RESET=$(curl -s -o /dev/null -w "%{http_code}" "$LIVE_URL/?sr_opcache_reset=1&token=$SR_OPCACHE_SECRET")
             
             if [ "$HTTP_STATUS_RESET" != "200" ]; then
               echo "FAIL: Rollback OPcache reset failed (HTTP $HTTP_STATUS_RESET). Stale cache may be served."
@@ -196,14 +195,12 @@ jobs:
               sleep 3
               # 3. Verify rollback across all critical pages
               PAGES=("$LIVE_URL/" "$LIVE_URL/product/dhanak-formal-dk-001-sample/" "$LIVE_URL/cart/")
-              # Dynamic cache-buster to prevent CDN/WAF caching across multiple failed deploys
               BUST="?nocache=rollback_verify_$GITHUB_SHA"
               
               ALL_PAGES_OK=true
               for url in "${PAGES[@]}"; do
                 echo "Verifying rollback on $url$BUST ..."
                 HTTP_STATUS=$(curl -sL -m 10 -o /tmp/rollback_body.txt -w "%{http_code}" "$url$BUST")
-                # If HTTP is not 200, OR the failed build SHA is still present, rollback failed
                 if [ "$HTTP_STATUS" != "200" ] || grep -q "sr_build_marker: $GITHUB_SHA" /tmp/rollback_body.txt; then
                   echo "FAIL: Rollback verification failed for $url. (HTTP $HTTP_STATUS or marker mismatch)"
                   ALL_PAGES_OK=false
