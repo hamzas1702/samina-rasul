@@ -167,8 +167,9 @@ jobs:
             THEME_DIR="$REMOTE_PATH/wp-content/themes/samina-rasul"
             MU_DIR="$REMOTE_PATH/wp-content/mu-plugins/samina-core"
             
-            LATEST_THEME_BACKUP=$(ls -1t "$THEME_DIR-backups"/samina-rasul-* 2>/dev/null | head -n 1)
-            LATEST_MU_BACKUP=$(ls -1t "$MU_DIR-backups"/samina-core-* 2>/dev/null | head -n 1)
+            # Added -d flag to list directories themselves, not their contents
+            LATEST_THEME_BACKUP=$(ls -1dt "$THEME_DIR-backups"/samina-rasul-* 2>/dev/null | head -n 1)
+            LATEST_MU_BACKUP=$(ls -1dt "$MU_DIR-backups"/samina-core-* 2>/dev/null | head -n 1)
             
             if [ -n "$LATEST_THEME_BACKUP" ]; then
               rm -rf "$THEME_DIR"
