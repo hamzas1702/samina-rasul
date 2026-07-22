@@ -1,3 +1,0 @@
-#!/bin/zsh
-DIR="$(cd "$(dirname "$0")" && pwd)"
-exec "$DIR/php" -d memory_limit=1024M "$DIR/wp-cli.phar" "$@"
