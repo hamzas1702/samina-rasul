@@ -19,6 +19,7 @@ Text Domain: samina-rasul
 	--sr-font-body: "Archivo", "Helvetica Neue", sans-serif;
 
 	--sr-measure: 62ch;
+	--sr-content-max: 1200px;
 	--sr-gutter: clamp(1.25rem, 4vw, 3rem);
 	--sr-section: clamp(3.5rem, 9vw, 7.5rem);
 }
@@ -186,7 +187,7 @@ a:hover { color: var(--sr-burgundy-soft); }
 }
 .sr-section--cream { background: var(--sr-cream); }
 .sr-section__inner {
-	max-width: 1200px;
+	width: min(100%, var(--sr-content-max));
 	margin: 0 auto;
 }
 .sr-section__intro {
@@ -258,7 +259,8 @@ a:hover { color: var(--sr-burgundy-soft); }
 	justify-content: center;
 	align-items: flex-start;
 	padding: clamp(3.5rem, 8vw, 7rem) clamp(2rem, 6vw, 6rem);
-	max-width: 640px;
+	width: min(100%, 640px);
+	box-sizing: border-box;
 }
 .sr-split__content h2 {
 	font-size: clamp(2rem, 3.8vw, 3.2rem);
@@ -280,6 +282,10 @@ a:hover { color: var(--sr-burgundy-soft); }
 }
 .sr-split--burgundy .button.sr-ghost::before { background: var(--sr-cream); }
 .sr-split--burgundy .button.sr-ghost:hover { color: var(--sr-burgundy); }
+.sr-split--burgundy .sr-split__content a:hover,
+.sr-split--burgundy .sr-split__content a:focus-visible { color: var(--sr-cream); }
+.sr-split--burgundy .button.sr-ghost:hover,
+.sr-split--burgundy .button.sr-ghost:focus-visible { color: var(--sr-burgundy); }
 
 /* ---------- Product row header (arrow pattern) ---------- */
 .sr-rowhead {
@@ -422,12 +428,33 @@ a:hover { color: var(--sr-burgundy-soft); }
 .sr-route p { max-width: 31ch; margin: 0 0 1.25rem; font-size: .91rem; line-height: 1.55; }
 .sr-route--bridal p { color: rgba(255,253,248,.91); }
 .sr-route__cta {
+	display: inline-flex;
+	align-items: center;
+	gap: .35rem;
 	font: 700 .68rem/1.2 var(--sr-font-body);
 	letter-spacing: .13em;
 	text-transform: uppercase;
+	padding: .78rem .95rem;
+	border: 1px solid currentColor;
+	background: rgba(255,255,255,.58);
+	box-shadow: 0 5px 0 rgba(74,31,36,.12);
+	transition: transform 300ms cubic-bezier(.22,1,.36,1), background-color 300ms ease, color 300ms ease, box-shadow 300ms ease;
 }
-.sr-route__cta b { display: inline-block; margin-left: .35rem; font-size: 1rem; transition: transform 300ms ease; }
-.sr-route:hover .sr-route__cta b { transform: translateX(.35rem); }
+.sr-route__cta b { display: inline-block; font-size: 1rem; transition: transform 300ms ease; }
+.sr-route:hover .sr-route__cta,
+.sr-route:focus-visible .sr-route__cta { transform: translateY(-3px); box-shadow: 0 8px 0 rgba(74,31,36,.16); background: var(--sr-burgundy); color: var(--sr-white); }
+.sr-route:hover .sr-route__cta b,
+.sr-route:focus-visible .sr-route__cta b { transform: translateX(.35rem); }
+.sr-route--bridal,
+.sr-route--bridal:hover,
+.sr-route--bridal:focus-visible { color: #fffdf8; }
+.sr-route--bridal .sr-route__cta { background: rgba(255,253,248,.1); color: #fffdf8; border-color: rgba(255,253,248,.72); box-shadow: 0 5px 0 rgba(0,0,0,.2); }
+.sr-route--bridal:hover .sr-route__cta,
+.sr-route--bridal:focus-visible .sr-route__cta { background: #fffdf8; color: var(--sr-burgundy); box-shadow: 0 8px 0 rgba(0,0,0,.25); }
+.sr-route--bridal:hover p,
+.sr-route--bridal:hover .sr-route__index,
+.sr-route--bridal:focus-visible p,
+.sr-route--bridal:focus-visible .sr-route__index { color: rgba(255,253,248,.91); }
 
 @keyframes sr-mukesh-glow { from { opacity: .45; transform: scale(.94); } to { opacity: 1; transform: scale(1.05); } }
 @keyframes sr-thread-shift { from { stroke-dashoffset: 0; } to { stroke-dashoffset: -38; } }

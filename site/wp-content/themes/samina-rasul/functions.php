@@ -171,7 +171,7 @@ add_filter( 'storefront_credit_link', '__return_false' );
 add_filter( 'storefront_copyright_text', function () {
 	return sprintf(
 		/* translators: %s: year */
-		esc_html__( '© %s Samina Rasul - every piece made to order, hand-finished in Pakistan.', 'samina-rasul' ),
+		esc_html__( '© %s Samina Rasul, every piece made to order and hand finished in Pakistan.', 'samina-rasul' ),
 		gmdate( 'Y' )
 	);
 } );

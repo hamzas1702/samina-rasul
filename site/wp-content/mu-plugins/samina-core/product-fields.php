@@ -43,7 +43,7 @@ add_action( 'woocommerce_single_product_summary', function () {
 			'<p class="sr-delivery-note">%s</p>',
 			esc_html( sprintf(
 				/* translators: %s: lead time, e.g. "7–8 weeks" */
-				__( 'Each piece is hand-finished to order — ready in %s.', 'samina' ),
+				__( 'Each piece is hand finished to order, ready in %s.', 'samina' ),
 				$time
 			) )
 		);

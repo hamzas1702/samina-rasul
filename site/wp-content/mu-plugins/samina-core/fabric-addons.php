@@ -129,7 +129,7 @@ add_filter( 'woocommerce_add_cart_item_data', function ( $cart_item_data, $produ
 		$extras = sr_get_addons( $product_id, 'extra' );
 		foreach ( array_map( 'intval', $_POST['sr_extras'] ) as $i ) {
 			if ( isset( $extras[ $i ] ) ) {
-				$selected[] = array( 'group' => __( 'Add-on', 'samina' ) ) + $extras[ $i ];
+				$selected[] = array( 'group' => __( 'Add on', 'samina' ) ) + $extras[ $i ];
 			}
 		}
 	}
