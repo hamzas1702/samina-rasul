@@ -90,15 +90,15 @@ jobs:
             if [ -d "$MU_DIR-_deploy" ]; then mv "$MU_DIR-_deploy" "$MU_DIR"; fi
             if [ -d "${MU_DIR}-tmp-old" ]; then mv "${MU_DIR}-tmp-old" "$MU_DIR-backups/samina-core-$TS"; fi
             
-            # Strictly safe rotation using mapfile arrays (no nullglob, no accidental deletion)
-            mapfile -t theme_backups < <(ls -1dt "$THEME_DIR-backups"/samina-rasul-* 2>/dev/null)
-            if [ "${#theme_backups[@]}" -gt 3 ]; then
-              printf '%s\n' "${theme_backups[@]:3}" | xargs -r rm -rf
+            # Safe rotation using standard shell piping (compatible with Hostinger jailshell)
+            THEME_BACKUPS=$(ls -1dt "$THEME_DIR-backups"/samina-rasul-* 2>/dev/null)
+            if [ -n "$THEME_BACKUPS" ]; then
+              echo "$THEME_BACKUPS" | tail -n +4 | xargs -r rm -rf
             fi
 
-            mapfile -t mu_backups < <(ls -1dt "$MU_DIR-backups"/samina-core-* 2>/dev/null)
-            if [ "${#mu_backups[@]}" -gt 3 ]; then
-              printf '%s\n' "${mu_backups[@]:3}" | xargs -r rm -rf
+            MU_BACKUPS=$(ls -1dt "$MU_DIR-backups"/samina-core-* 2>/dev/null)
+            if [ -n "$MU_BACKUPS" ]; then
+              echo "$MU_BACKUPS" | tail -n +4 | xargs -r rm -rf
             fi
           EOF
 
