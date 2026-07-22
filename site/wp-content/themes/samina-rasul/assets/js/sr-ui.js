@@ -26,14 +26,17 @@
 
 	/* ---------------- Lenis smooth scroll ---------------- */
 	var lenis = null;
-	if (!reduceMotion && typeof Lenis !== 'undefined') {
+	/* Native scrolling is the most stable baseline on shared hosting. Enable the
+	 * Lenis layer only when the page explicitly opts in with data-sr-smooth. */
+	var smoothScrollOptIn = docEl.getAttribute('data-sr-smooth') === 'true';
+	if (!reduceMotion && smoothScrollOptIn && finePointer && typeof Lenis !== 'undefined') {
 		lenis = new Lenis({
-			duration: 1.1,
+			duration: 0.75,
 			easing: function (t) { return Math.min(1, 1.001 - Math.pow(2, -10 * t)); }
 		});
 		lenis.on('scroll', ScrollTrigger.update);
 		gsap.ticker.add(function (time) { lenis.raf(time * 1000); });
-		gsap.ticker.lagSmoothing(0);
+		gsap.ticker.lagSmoothing(500, 16);
 	}
 
 	/* ---------------- Sticky header: shrink + hide on scroll down ---------------- */

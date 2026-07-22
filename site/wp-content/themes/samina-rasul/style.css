@@ -435,8 +435,9 @@ a:hover { color: var(--sr-burgundy-soft); }
 	letter-spacing: .13em;
 	text-transform: uppercase;
 	padding: .78rem .95rem;
-	border: 1px solid currentColor;
-	background: rgba(255,255,255,.58);
+	border: 1px solid var(--sr-burgundy);
+	background: #fffdf8;
+	color: var(--sr-burgundy);
 	box-shadow: 0 5px 0 rgba(74,31,36,.12);
 	transition: transform 300ms cubic-bezier(.22,1,.36,1), background-color 300ms ease, color 300ms ease, box-shadow 300ms ease;
 }
@@ -448,9 +449,6 @@ a:hover { color: var(--sr-burgundy-soft); }
 .sr-route--bridal,
 .sr-route--bridal:hover,
 .sr-route--bridal:focus-visible { color: #fffdf8; }
-.sr-route--bridal .sr-route__cta { background: rgba(255,253,248,.1); color: #fffdf8; border-color: rgba(255,253,248,.72); box-shadow: 0 5px 0 rgba(0,0,0,.2); }
-.sr-route--bridal:hover .sr-route__cta,
-.sr-route--bridal:focus-visible .sr-route__cta { background: #fffdf8; color: var(--sr-burgundy); box-shadow: 0 8px 0 rgba(0,0,0,.25); }
 .sr-route--bridal:hover p,
 .sr-route--bridal:hover .sr-route__index,
 .sr-route--bridal:focus-visible p,

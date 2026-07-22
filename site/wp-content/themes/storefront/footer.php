@@ -35,6 +35,6 @@
 </div><!-- #page -->
 
 <?php wp_footer(); ?>
-<!-- sr_build_marker: {{GITHUB_SHA}} -->
+
 </body>
 </html>

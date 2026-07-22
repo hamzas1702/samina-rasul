@@ -16,8 +16,7 @@ add_action( 'wp_enqueue_scripts', function () {
 
 	wp_enqueue_script( 'sr-gsap', $assets . '/gsap.min.js', array(), '3.12.5', true );
 	wp_enqueue_script( 'sr-scrolltrigger', $assets . '/ScrollTrigger.min.js', array( 'sr-gsap' ), '3.12.5', true );
-	wp_enqueue_script( 'sr-lenis', $assets . '/lenis.min.js', array(), '1.1.14', true );
-	wp_enqueue_script( 'sr-ui', $assets . '/sr-ui.js', array( 'sr-gsap', 'sr-scrolltrigger', 'sr-lenis' ), $js_ver, true );
+	wp_enqueue_script( 'sr-ui', $assets . '/sr-ui.js', array( 'sr-gsap', 'sr-scrolltrigger' ), $js_ver, true );
 }, 20 );
 
 /**
