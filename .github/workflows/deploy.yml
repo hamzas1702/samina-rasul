@@ -13,7 +13,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    environment: staging
+    environment: staging # Requires GitHub branch protection/environment setup
 
     steps:
       - name: Checkout code
@@ -23,62 +23,62 @@ jobs:
         env:
           GITHUB_SHA: ${{ github.sha }}
         run: |
-          sed -i "s/{{GITHUB_SHA}}/$GITHUB_SHA/g" ./site/wp-content/themes/storefront/footer.php
+          sed -i "s/{{GITHUB_SHA}}/$GITHUB_SHA/g" ./site/wp-content/themes/samina-rasul/footer.php
           echo "Verifying marker injection in footer.php..."
-          # Print the last 5 lines to prove the SHA is actually in the file
-          tail -n 5 ./site/wp-content/themes/storefront/footer.php
+          tail -n 5 ./site/wp-content/themes/samina-rasul/footer.php
 
       - name: Setup SSH
         uses: webfactory/ssh-agent@v0.9.1
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      - name: Configure SSH Alias & known_hosts
+      - name: Prepare Remote Directories
         env:
+          REMOTE_PATH: ${{ secrets.REMOTE_PATH }}
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_PORT: ${{ secrets.SSH_PORT }}
           SSH_USER: ${{ secrets.SSH_USER }}
         run: |
-          mkdir -p ~/.ssh
-          echo "Host hostinger_deploy" > ~/.ssh/config
-          echo "  HostName $SSH_HOST" >> ~/.ssh/config
-          echo "  Port $SSH_PORT" >> ~/.ssh/config
-          echo "  User $SSH_USER" >> ~/.ssh/config
-          echo "  StrictHostKeyChecking accept-new" >> ~/.ssh/config
-
-      - name: Prepare Remote Directories
-        env:
-          REMOTE_PATH: ${{ secrets.REMOTE_PATH }}
-        run: |
-          ssh hostinger_deploy "mkdir -p $REMOTE_PATH/wp-content/themes/samina-rasul-backups $REMOTE_PATH/wp-content/mu-plugins/samina-core-backups"
+          SSH_CMD="ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new -p $SSH_PORT $SSH_USER@$SSH_HOST"
+          $SSH_CMD "mkdir -p $REMOTE_PATH/wp-content/themes/samina-rasul-backups $REMOTE_PATH/wp-content/mu-plugins/samina-core-backups"
 
       - name: Sync Theme to Temp Dir
         env:
           REMOTE_PATH: ${{ secrets.REMOTE_PATH }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SSH_USER: ${{ secrets.SSH_USER }}
         run: |
           rsync -avz --delete \
           --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
           --exclude-from="./.rsync-exclude" \
-          -e "ssh" \
+          -e "ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new -p $SSH_PORT" \
           ./site/wp-content/themes/samina-rasul/ \
-          hostinger_deploy:$REMOTE_PATH/wp-content/themes/samina-rasul-_deploy/
+          $SSH_USER@$SSH_HOST:$REMOTE_PATH/wp-content/themes/samina-rasul-_deploy/
 
       - name: Sync MU-Plugin to Temp Dir
         env:
           REMOTE_PATH: ${{ secrets.REMOTE_PATH }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SSH_USER: ${{ secrets.SSH_USER }}
         run: |
           rsync -avz --delete \
           --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
           --exclude-from="./.rsync-exclude" \
-          -e "ssh" \
+          -e "ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new -p $SSH_PORT" \
           ./site/wp-content/mu-plugins/samina-core/ \
-          hostinger_deploy:$REMOTE_PATH/wp-content/mu-plugins/samina-core-_deploy/
+          $SSH_USER@$SSH_HOST:$REMOTE_PATH/wp-content/mu-plugins/samina-core-_deploy/
 
       - name: Execute Zero-Gap Atomic Swap & Safe Rotation
         env:
           REMOTE_PATH: ${{ secrets.REMOTE_PATH }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SSH_USER: ${{ secrets.SSH_USER }}
         run: |
-          ssh hostinger_deploy "REMOTE_PATH='$REMOTE_PATH' bash -s" <<'EOF'
+          SSH_CMD="ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new -p $SSH_PORT $SSH_USER@$SSH_HOST"
+          $SSH_CMD "REMOTE_PATH='$REMOTE_PATH' bash -s" <<'EOF'
             set -e
             TS=$(date +%s)
             THEME_DIR="$REMOTE_PATH/wp-content/themes/samina-rasul"
@@ -93,7 +93,7 @@ jobs:
             if [ -d "$MU_DIR-_deploy" ]; then mv "$MU_DIR-_deploy" "$MU_DIR"; fi
             if [ -d "${MU_DIR}-tmp-old" ]; then mv "${MU_DIR}-tmp-old" "$MU_DIR-backups/samina-core-$TS"; fi
             
-            # Safe rotation using standard shell piping (compatible with Hostinger jailshell)
+            # Safe rotation using standard shell piping
             THEME_BACKUPS=$(ls -1dt "$THEME_DIR-backups"/samina-rasul-* 2>/dev/null)
             if [ -n "$THEME_BACKUPS" ]; then
               echo "$THEME_BACKUPS" | tail -n +4 | xargs -r rm -rf
@@ -105,13 +105,17 @@ jobs:
             fi
           EOF
 
-      - name: Flush Cache & Reset OPcache
+      - name: Flush Cache & Reset OPcache (Forward Path)
         env:
           REMOTE_PATH: ${{ secrets.REMOTE_PATH }}
           LIVE_URL: ${{ secrets.LIVE_URL }}
           SR_OPCACHE_SECRET: ${{ secrets.SR_OPCACHE_SECRET }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SSH_USER: ${{ secrets.SSH_USER }}
         run: |
-          ssh hostinger_deploy "cd $REMOTE_PATH || exit 1; wp cache flush --quiet || true; wp litespeed-purge all --quiet || true"
+          SSH_CMD="ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new -p $SSH_PORT $SSH_USER@$SSH_HOST"
+          $SSH_CMD "cd $REMOTE_PATH || exit 1; wp cache flush --quiet || true; wp litespeed-purge all --quiet || true"
 
           echo "Sending forward OPcache reset request..."
           HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$LIVE_URL/?sr_opcache_reset=1&token=$SR_OPCACHE_SECRET")
@@ -140,7 +144,6 @@ jobs:
                 break
               else
                 echo "WARN: $url failed (HTTP $HTTP_STATUS or marker mismatch). Response body tail:"
-                # Print the last 20 lines so we can actually see the footer
                 tail -n 20 /tmp/body.txt
                 echo "Retrying in 3s..."
                 sleep 3
@@ -160,16 +163,19 @@ jobs:
           LIVE_URL: ${{ secrets.LIVE_URL }}
           SR_OPCACHE_SECRET: ${{ secrets.SR_OPCACHE_SECRET }}
           GITHUB_SHA: ${{ github.sha }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SSH_USER: ${{ secrets.SSH_USER }}
         run: |
           ROLLBACK_STATUS="UNKNOWN"
+          SSH_CMD="ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new -p $SSH_PORT $SSH_USER@$SSH_HOST"
 
           set +e
-          ssh hostinger_deploy "REMOTE_PATH='$REMOTE_PATH' bash -s" <<'EOF'
+          $SSH_CMD "REMOTE_PATH='$REMOTE_PATH' bash -s" <<'EOF'
             set -ex
             THEME_DIR="$REMOTE_PATH/wp-content/themes/samina-rasul"
             MU_DIR="$REMOTE_PATH/wp-content/mu-plugins/samina-core"
             
-            # Added -d flag to list directories themselves, not their contents
             LATEST_THEME_BACKUP=$(ls -1dt "$THEME_DIR-backups"/samina-rasul-* 2>/dev/null | head -n 1)
             LATEST_MU_BACKUP=$(ls -1dt "$MU_DIR-backups"/samina-core-* 2>/dev/null | head -n 1)
             
