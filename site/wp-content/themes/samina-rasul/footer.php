@@ -38,9 +38,15 @@
 wp_footer();
 
 /*
- * Build marker. The deploy pipeline substitutes the commit SHA; when the
- * placeholder is still present (local work, or a deploy that skipped the
- * substitution) nothing is emitted rather than leaking a literal
+ * Build marker. The deploy pipeline rewrites {{GITHUB_SHA}} below with the
+ * commit SHA (deploy.yml step "sed -i"), then health-checks the live response
+ * for the exact string "sr_build_marker: <sha>" - twice: once to confirm the
+ * release, and again to confirm a rollback actually reverted. That label is a
+ * contract with CI; do not rename it without updating deploy.yml lines 142
+ * and 217.
+ *
+ * When the placeholder is still in place (local work, or a deploy that skipped
+ * the substitution) nothing is emitted, rather than leaking a literal
  * "{{GITHUB_SHA}}" into production markup.
  */
 $sr_build = '{{GITHUB_SHA}}';
@@ -50,7 +56,7 @@ if ( 0 !== strpos( $sr_build, '{{' ) ) {
 	// stray quote or "-->" from breaking out of the comment or the literal.
 	$sr_build = substr( preg_replace( '/[^a-f0-9]/i', '', $sr_build ), 0, 40 );
 	if ( '' !== $sr_build ) {
-		printf( "<!-- sr_build: %s -->\n", esc_html( $sr_build ) );
+		printf( "<!-- sr_build_marker: %s -->\n", esc_html( $sr_build ) );
 	}
 }
 ?>
