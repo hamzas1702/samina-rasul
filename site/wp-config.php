@@ -91,6 +91,35 @@ if ( ! defined( 'WP_DEBUG' ) ) {
 	define( 'WP_DEBUG', false );
 }
 
+/**
+ * Local development: follow whatever loopback port the dev server was handed
+ * instead of the port baked into the database, so the site keeps working when
+ * another process already owns the usual one.
+ *
+ * The host is taken from the request, so it is validated against a loopback
+ * allowlist first - an unchecked HTTP_HOST here would be a host-header
+ * injection vector. Anything else falls through to the stored siteurl.
+ */
+if ( ! empty( $_SERVER['HTTP_HOST'] ) && ! defined( 'WP_HOME' ) ) {
+	/* No WordPress functions exist yet at this point in the bootstrap, so the
+	 * header is handled with plain PHP only. */
+	$sr_host  = strtolower( stripslashes( (string) $_SERVER['HTTP_HOST'] ) );
+	$sr_parts = explode( ':', $sr_host );
+	$sr_name  = $sr_parts[0];
+	$sr_port  = isset( $sr_parts[1] ) ? (int) $sr_parts[1] : 0;
+
+	if ( in_array( $sr_name, array( 'localhost', '127.0.0.1', '[::1]' ), true )
+		&& ( 0 === $sr_port || ( $sr_port > 0 && $sr_port <= 65535 ) )
+		&& ! isset( $sr_parts[2] )
+	) {
+		$sr_url = 'http://' . $sr_name . ( $sr_port ? ':' . $sr_port : '' );
+		define( 'WP_HOME', $sr_url );
+		define( 'WP_SITEURL', $sr_url );
+		unset( $sr_url );
+	}
+	unset( $sr_host, $sr_parts, $sr_name, $sr_port );
+}
+
 /* That's all, stop editing! Happy publishing. */
 
 /** Absolute path to the WordPress directory. */

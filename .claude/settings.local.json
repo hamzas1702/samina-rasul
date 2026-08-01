@@ -1,4 +1,7 @@
 {
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://127.0.0.1:8787"
+  },
   "permissions": {
     "allow": [
       "Bash(docker --version)",
@@ -31,7 +34,30 @@
       "Bash(curl -s -b cookies.txt \"http://localhost:8787/wp-json/wc/store/v1/cart\")",
       "Bash(../../../../../.tools/php -r '$d=json_decode\\(stream_get_contents\\(STDIN\\),true\\); echo \"items: \".$d[\"items_count\"].\"\\\\n\"; foreach\\($d[\"items\"] as $it\\){echo $it[\"name\"].\" | qty \".$it[\"quantity\"].\" | line total \".$it[\"totals\"][\"line_total\"].\"\\\\n\"; foreach\\($it[\"item_data\"] as $m\\){echo \" - \".$m[\"key\"].\": \".$m[\"value\"].\"\\\\n\";}} echo \"cart total: \".$d[\"totals\"][\"total_price\"].\"\\\\n\";')",
       "Bash(curl -s \"http://localhost:8787/shop/\")",
-      "Bash(curl -s \"http://localhost:8787/product/dhanak-bridal-dk-008-sample/\")"
+      "Bash(curl -s \"http://localhost:8787/product/dhanak-bridal-dk-008-sample/\")",
+      "Read(//Users/hamzasultan/.claude/**)",
+      "Bash(echo \"---EXIT_CODE:$?\")",
+      "Bash(uv tool *)",
+      "Bash(kill 65468)",
+      "Bash(awk '{print $2}')",
+      "Bash(xargs -r kill -9)",
+      "Bash(rtk grep *)",
+      "Bash(rtk ls *)"
     ]
-  }
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/hamzasultan/.local/bin/headroom wrap selfheal --marker headroom-wrap-selfheal",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  },
+  "spinnerTipsEnabled": true
 }

@@ -6,7 +6,14 @@ site/wp-content/cache/
 
 # Local Dev Tools (Binaries shouldn't be in Git)
 .tools/
+.claude/worktrees/
 
 # OS / Editor files
 .DS_Store
 *.log
+
+graphify-output/
+graphify-theme/graphify-out/
+
+.claude/
+.tokensave/

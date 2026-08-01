@@ -1,25 +1,34 @@
 <?php
 /**
- * Homepage - a narrative arc, not a grid of sections:
- * arrival (split hero) → belief (manifesto) → the two paths (Formals / Bridals
- * splits) → proof (atelier pieces) → values (drifting words) → how it works
- * (process) → invitation (newsletter).
+ * Homepage, ordered to put merchandise in front of narrative:
+ * arrival (hero) → new arrivals rail → collections → our story → belief
+ * (manifesto) → the two paths (Formals / Bridals) → values → how it works
+ * → invitation (newsletter).
  *
- * Visual slots use CSS-crafted placeholders (.sr-ph) until client photography
- * arrives - swap each .sr-ph for an <img>/<picture> then.
+ * Shoppable rows sit directly under the hero so a returning visitor reaches
+ * product without scrolling past the brand story; the story earns its place
+ * lower down, where it supports consideration rather than blocking it.
+ *
+ * Visual slots fall back to CSS-crafted placeholders (.sr-ph) when the
+ * corresponding image is absent, so a missing file never breaks the layout.
  */
 
 get_header();
 
-$sr_ornament = '<svg class="sr-ornament" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-	<circle cx="100" cy="100" r="96" stroke="currentColor" stroke-width="0.6"/>
-	<circle cx="100" cy="100" r="78" stroke="currentColor" stroke-width="0.4"/>
-	<circle cx="100" cy="100" r="34" stroke="currentColor" stroke-width="0.5"/>
-	<g stroke="currentColor" stroke-width="0.5">'
-	. implode( '', array_map( function ( $i ) {
-		return '<g transform="rotate(' . ( $i * 30 ) . ' 100 100)"><path d="M100 4 C 108 28, 108 44, 100 62 C 92 44, 92 28, 100 4 Z"/><circle cx="100" cy="70" r="1.6" fill="currentColor" stroke="none"/></g>';
-	}, range( 0, 11 ) ) )
-	. '</g></svg>';
+/**
+ * Homepage imagery. Each entry resolves through sr_image_url(), which prefers
+ * the theme's assets/images/ and falls back to wp-content/uploads/, so any of
+ * these can be replaced by dropping a file in either place. A missing file
+ * returns '' and the template renders its CSS placeholder instead.
+ */
+$sr_img = array(
+	'hero'    => sr_image_url( 'hero-section.jpg' ),
+	'story'   => sr_image_url( '2026/07/DSC08661.jpg' ),
+	'formals' => sr_image_url( '2026/07/DSC08885.jpg' ),
+	'bridals' => sr_image_url( '2026/07/DSC08885-1.jpg' ),
+);
+
+$sr_ornament = sr_ornament_svg();
 
 // A small hand-stitch motif used as a recurring couture detail, not decoration for its own sake.
 $sr_stitch_motif = '<svg class="sr-stitch-motif" viewBox="0 0 180 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -43,17 +52,76 @@ $sr_gota_motif = '<svg class="sr-motif sr-motif--gota" viewBox="0 0 180 140" fil
 	<path class="sr-motif__spark" d="M90 48 L96 64 L112 70 L96 76 L90 92 L84 76 L68 70 L84 64 Z" fill="currentColor"/>
 </svg>';
 
-$sr_resham_motif = '<svg class="sr-motif sr-motif--resham" viewBox="0 0 180 140" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-	<path class="sr-motif__thread sr-motif__thread--one" d="M8 104 C48 6 90 144 172 32" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-dasharray="6 8"/>
-	<path class="sr-motif__thread sr-motif__thread--two" d="M10 118 C58 16 108 140 170 46" stroke="currentColor" stroke-width=".8" stroke-linecap="round" stroke-dasharray="2 6"/>
-	<circle class="sr-motif__knot" cx="91" cy="74" r="6" fill="currentColor"/>
-</svg>';
+/**
+ * Process marks - one per timeline step, drawn on the same 180x64 field as the
+ * stitch motif and reusing its __thread / __needle / __bead class hooks, so the
+ * existing draw-in animation applies to all three without new keyframes.
+ * A tailor's rule for the measuring, the running stitch for the making, a tied
+ * ribbon for the finished piece.
+ */
+$sr_process_marks = array(
+	'measure' => '<svg class="sr-stitch-motif sr-stitch-motif--measure" viewBox="0 0 180 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+		<path class="sr-stitch-motif__thread" d="M5 32 H175" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-dasharray="5 7"/>
+		<g stroke="currentColor" stroke-width="1.1" stroke-linecap="round">
+			<path d="M24 22 V32"/><path d="M47 27 V32"/><path d="M70 22 V32"/>
+			<path d="M110 32 V42"/><path d="M133 32 V37"/><path d="M156 32 V42"/>
+		</g>
+		<path class="sr-stitch-motif__needle" d="M90 12 V52" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+		<circle class="sr-stitch-motif__bead" cx="90" cy="32" r="3.6" fill="currentColor"/>
+	</svg>',
+	'stitch'  => $sr_stitch_motif,
+	'ribbon'  => '<svg class="sr-stitch-motif sr-stitch-motif--ribbon" viewBox="0 0 180 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+		<path class="sr-stitch-motif__thread" d="M90 30 C68 10 34 10 30 24 C26 39 60 42 90 30 C120 18 154 21 150 36 C146 50 112 50 90 30Z" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-dasharray="5 7"/>
+		<path class="sr-stitch-motif__needle" d="M90 30 L74 56 M90 30 L106 56" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+		<circle class="sr-stitch-motif__bead" cx="90" cy="30" r="3.6" fill="currentColor"/>
+	</svg>',
+);
+
+/**
+ * Pillar marks for Our Story - one per heading, drawn on a shared 48-square
+ * so the three read as a set: a threaded needle for the making, a zardozi
+ * rosette for the cloth, a tailor's tape for the fitting.
+ */
+$sr_pillar_marks = array(
+	'craft'   => '<svg class="sr-pillar-mark" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+		<path d="M9 39 L34 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+		<path d="M31 11 L37 17 L40 8 Z" fill="currentColor"/>
+		<ellipse cx="13.5" cy="34.5" rx="2.6" ry="1.5" transform="rotate(-45 13.5 34.5)" stroke="currentColor" stroke-width="1.2"/>
+		<path d="M11 37 C4 34 6 26 13 25 S21 17 16 12" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-dasharray="3 4"/>
+	</svg>',
+	'quality' => '<svg class="sr-pillar-mark" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+		<g stroke="currentColor" stroke-width="1.3">
+			<path d="M24 24 C16 12 18 6 24 2 C30 6 32 12 24 24Z"/>
+			<path d="M24 24 C36 16 42 18 46 24 C42 30 36 32 24 24Z"/>
+			<path d="M24 24 C32 36 30 42 24 46 C18 42 16 36 24 24Z"/>
+			<path d="M24 24 C12 32 6 30 2 24 C6 18 12 16 24 24Z"/>
+		</g>
+		<circle cx="24" cy="24" r="4" fill="currentColor"/>
+	</svg>',
+	'touch'   => '<svg class="sr-pillar-mark" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+		<path d="M6 17 H42 A4 4 0 0 1 42 25 H12 A4 4 0 0 0 12 33 H44" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+		<g stroke="currentColor" stroke-width="1.1" stroke-linecap="round">
+			<path d="M13 17 V21"/><path d="M20 17 V21"/><path d="M27 17 V21"/><path d="M34 17 V21"/>
+			<path d="M19 29 V33"/><path d="M26 29 V33"/><path d="M33 29 V33"/>
+		</g>
+	</svg>',
+);
+
 ?>
 
 <main id="main" class="site-main sr-home">
 
-	<!-- 01 · Arrival -->
-	<section class="sr-hero sr-hero--split">
+	<!-- 01 · Arrival: full-bleed image hero, text centred over a scrim. -->
+	<?php $sr_hero_image = $sr_img['hero']; ?>
+	<section class="sr-hero sr-hero--full<?php echo $sr_hero_image ? ' sr-hero--photo' : ''; ?>">
+		<div class="sr-hero__bg sr-ph--deep" data-sr-parallax="6" aria-hidden="true">
+			<?php if ( $sr_hero_image ) : ?>
+				<img class="sr-hero__img" src="<?php echo esc_url( $sr_hero_image ); ?>" alt="" fetchpriority="high" decoding="async">
+			<?php else : ?>
+				<?php echo $sr_ornament; // phpcs:ignore WordPress.Security.EscapeOutput ?>
+			<?php endif; ?>
+		</div>
+		<div class="sr-hero__scrim" aria-hidden="true"></div>
 		<div class="sr-hero__content">
 			<span class="sr-eyebrow"><?php esc_html_e( 'Hand embellished · Made to order', 'samina-rasul' ); ?></span>
 			<h1>
@@ -63,15 +131,12 @@ $sr_resham_motif = '<svg class="sr-motif sr-motif--resham" viewBox="0 0 180 140"
 			</h1>
 			<p><?php esc_html_e( 'Formals and bridals from the house of Samina Rasul, with zardozi, mukesh and resham worked by hand, cut to your measure and finished to order.', 'samina-rasul' ); ?></p>
 			<div class="sr-hero-actions">
-				<a class="button" href="<?php echo esc_url( get_term_link( 'formals', 'product_cat' ) ); ?>"><span><?php esc_html_e( 'Shop Formals', 'samina-rasul' ); ?></span></a>
-				<a class="button sr-ghost" href="<?php echo esc_url( get_term_link( 'bridals', 'product_cat' ) ); ?>"><span><?php esc_html_e( 'Explore Bridals', 'samina-rasul' ); ?></span></a>
+				<a class="button" href="<?php echo esc_url( sr_term_url( 'formals', 'product_cat' ) ); ?>"><span><?php esc_html_e( 'Shop Formals', 'samina-rasul' ); ?></span></a>
+				<a class="button sr-ghost" href="<?php echo esc_url( sr_term_url( 'bridals', 'product_cat' ) ); ?>"><span><?php esc_html_e( 'Explore Bridals', 'samina-rasul' ); ?></span></a>
 			</div>
-		</div>
-		<div class="sr-hero__visual">
-			<div class="sr-ph sr-ph--warm" data-sr-parallax="7">
-				<?php echo $sr_ornament; // phpcs:ignore WordPress.Security.EscapeOutput ?>
-				<span class="sr-ph__caption"><?php esc_html_e( 'Campaign photography in production', 'samina-rasul' ); ?></span>
-			</div>
+			<?php if ( ! $sr_hero_image ) : ?>
+				<span class="sr-hero__caption"><?php esc_html_e( 'Campaign photography in production', 'samina-rasul' ); ?></span>
+			<?php endif; ?>
 		</div>
 	</section>
 
@@ -85,37 +150,7 @@ $sr_resham_motif = '<svg class="sr-motif sr-motif--resham" viewBox="0 0 180 140"
 		</div>
 	</div>
 
-	<!-- 02 · A clear shopping index: categories first, collections second. -->
-	<section class="sr-section sr-shop-gateway">
-		<div class="sr-section__inner sr-shop-gateway__layout">
-			<header class="sr-shop-gateway__intro" data-sr-reveal>
-				<div class="sr-shop-gateway__seal"><?php echo $sr_gota_motif; // phpcs:ignore WordPress.Security.EscapeOutput ?></div>
-				<span class="sr-eyebrow"><?php esc_html_e( 'Explore the house', 'samina-rasul' ); ?></span>
-				<h2><?php echo wp_kses_post( __( 'Choose your <em>way in</em>', 'samina-rasul' ) ); ?></h2>
-				<p><?php esc_html_e( 'Begin with the way you want to be dressed. Then discover the collection that feels like your own.', 'samina-rasul' ); ?></p>
-			</header>
-			<nav class="sr-shop-gateway__grid" aria-label="<?php esc_attr_e( 'Shop the Samina Rasul house', 'samina-rasul' ); ?>">
-				<a class="sr-route sr-route--formal" href="<?php echo esc_url( get_term_link( 'formals', 'product_cat' ) ); ?>" data-sr-reveal>
-					<div class="sr-route__art"><?php echo $sr_mukesh_motif; // phpcs:ignore WordPress.Security.EscapeOutput ?></div>
-					<div class="sr-route__copy"><span class="sr-route__index">01 · <?php esc_html_e( 'Ready to order', 'samina-rasul' ); ?></span><h3><?php esc_html_e( 'Formals', 'samina-rasul' ); ?></h3><p><?php esc_html_e( 'Occasion pieces made to order, selected and ordered online.', 'samina-rasul' ); ?></p><span class="sr-route__cta"><?php esc_html_e( 'Shop Formals', 'samina-rasul' ); ?> <b aria-hidden="true">→</b></span></div>
-				</a>
-				<a class="sr-route sr-route--bridal" href="<?php echo esc_url( get_term_link( 'bridals', 'product_cat' ) ); ?>" data-sr-reveal>
-					<div class="sr-route__art"><?php echo $sr_zardozi_motif; // phpcs:ignore WordPress.Security.EscapeOutput ?></div>
-					<div class="sr-route__copy"><span class="sr-route__index">02 · <?php esc_html_e( 'By consultation', 'samina-rasul' ); ?></span><h3><?php esc_html_e( 'Bridal commissions', 'samina-rasul' ); ?></h3><p><?php esc_html_e( 'A considered conversation for a piece made only around you.', 'samina-rasul' ); ?></p><span class="sr-route__cta"><?php esc_html_e( 'Explore Bridals', 'samina-rasul' ); ?> <b aria-hidden="true">→</b></span></div>
-				</a>
-				<a class="sr-route sr-route--collection sr-route--dhanak" href="<?php echo esc_url( get_term_link( 'dhanak', 'sr_collection' ) ); ?>" data-sr-reveal>
-					<div class="sr-route__art"><?php echo $sr_gota_motif; // phpcs:ignore WordPress.Security.EscapeOutput ?></div>
-					<div class="sr-route__copy"><span class="sr-route__index">03 · <?php esc_html_e( 'Collection', 'samina-rasul' ); ?></span><h3><?php esc_html_e( 'Dhanak', 'samina-rasul' ); ?></h3><span class="sr-route__cta"><?php esc_html_e( 'View collection', 'samina-rasul' ); ?> <b aria-hidden="true">→</b></span></div>
-				</a>
-				<a class="sr-route sr-route--collection sr-route--ujala" href="<?php echo esc_url( get_term_link( 'ujala', 'sr_collection' ) ); ?>" data-sr-reveal>
-					<div class="sr-route__art"><?php echo $sr_resham_motif; // phpcs:ignore WordPress.Security.EscapeOutput ?></div>
-					<div class="sr-route__copy"><span class="sr-route__index">04 · <?php esc_html_e( 'Collection', 'samina-rasul' ); ?></span><h3><?php esc_html_e( 'Ujala', 'samina-rasul' ); ?></h3><span class="sr-route__cta"><?php esc_html_e( 'View collection', 'samina-rasul' ); ?> <b aria-hidden="true">→</b></span></div>
-				</a>
-			</nav>
-		</div>
-	</section>
-
-	<!-- 03 · Latest pieces stay close to the top, in a browsable editorial rail. -->
+	<!-- 03 · Latest pieces, in a browsable editorial rail. -->
 	<section class="sr-section sr-atelier">
 		<div class="sr-section__inner">
 			<div class="sr-rowhead" data-sr-reveal>
@@ -128,11 +163,108 @@ $sr_resham_motif = '<svg class="sr-motif sr-motif--resham" viewBox="0 0 180 140"
 						<button type="button" class="sr-rail-control" data-sr-product-scroll="prev" aria-label="<?php esc_attr_e( 'Show previous pieces', 'samina-rasul' ); ?>">←</button>
 						<button type="button" class="sr-rail-control" data-sr-product-scroll="next" aria-label="<?php esc_attr_e( 'Show next pieces', 'samina-rasul' ); ?>">→</button>
 					</div>
-					<a class="button sr-ghost" href="<?php echo esc_url( get_permalink( wc_get_page_id( 'shop' ) ) ); ?>"><span><?php esc_html_e( 'View all pieces', 'samina-rasul' ); ?></span></a>
+					<a class="button sr-ghost" href="<?php echo esc_url( sr_shop_url() ); ?>"><span><?php esc_html_e( 'View all pieces', 'samina-rasul' ); ?></span></a>
 				</div>
 			</div>
 			<div class="sr-product-rail" data-sr-product-rail>
 				<?php echo do_shortcode( '[products limit="8" columns="4" orderby="date"]' ); ?>
+			</div>
+		</div>
+	</section>
+
+	<!-- 02b · Featured Collections -->
+	<section class="sr-section sr-section--cream">
+		<div class="sr-section__inner">
+			<div class="sr-section__intro" data-sr-reveal>
+				<span class="sr-eyebrow"><?php esc_html_e( 'Explore the house', 'samina-rasul' ); ?></span>
+				<h2><?php echo wp_kses_post( __( 'Featured <em>Collections</em>', 'samina-rasul' ) ); ?></h2>
+				<p><?php esc_html_e( 'Discover our exquisite range of handcrafted couture, where every stitch tells a story of elegance and tradition.', 'samina-rasul' ); ?></p>
+			</div>
+			<nav class="sr-shop-gateway__grid sr-shop-gateway__grid--3" aria-label="<?php esc_attr_e( 'Shop the Samina Rasul house', 'samina-rasul' ); ?>">
+				<a class="sr-route sr-route--media sr-route--formal" href="<?php echo esc_url( sr_term_url( 'formals', 'product_cat' ) ); ?>" data-sr-reveal>
+					<div class="sr-route__media">
+						<?php echo sr_term_card_media( 'formals', 'product_cat', 'warm' ); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped in helper. ?>
+						<span class="sr-route__art" data-sr-parallax="4"><?php echo $sr_mukesh_motif; // phpcs:ignore WordPress.Security.EscapeOutput ?></span>
+					</div>
+					<div class="sr-route__copy"><span class="sr-route__index">01 · <?php esc_html_e( 'Ready to order', 'samina-rasul' ); ?></span><h3><?php esc_html_e( 'Formal Collection', 'samina-rasul' ); ?></h3><p><?php esc_html_e( 'Sophisticated designs for special occasions, cut and embellished to order.', 'samina-rasul' ); ?></p><span class="sr-route__cta"><?php esc_html_e( 'View Collection', 'samina-rasul' ); ?> <b aria-hidden="true">→</b></span></div>
+				</a>
+				<a class="sr-route sr-route--media sr-route--bridal" href="<?php echo esc_url( sr_term_url( 'bridals', 'product_cat' ) ); ?>" data-sr-reveal>
+					<div class="sr-route__media">
+						<?php echo sr_term_card_media( 'bridals', 'product_cat', 'deep' ); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped in helper. ?>
+						<span class="sr-route__art" data-sr-parallax="4"><?php echo $sr_zardozi_motif; // phpcs:ignore WordPress.Security.EscapeOutput ?></span>
+					</div>
+					<div class="sr-route__copy"><span class="sr-route__index">02 · <?php esc_html_e( 'By consultation', 'samina-rasul' ); ?></span><h3><?php esc_html_e( 'Bridal Couture', 'samina-rasul' ); ?></h3><p><?php esc_html_e( 'Breathtaking bridal masterpieces blending tradition with contemporary elegance.', 'samina-rasul' ); ?></p><span class="sr-route__cta"><?php esc_html_e( 'View Collection', 'samina-rasul' ); ?> <b aria-hidden="true">→</b></span></div>
+				</a>
+				<a class="sr-route sr-route--media sr-route--dhanak" href="<?php echo esc_url( sr_term_url( 'dhanak', 'sr_collection' ) ); ?>" data-sr-reveal>
+					<div class="sr-route__media">
+						<?php echo sr_term_card_media( 'dhanak', 'sr_collection', 'warm' ); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped in helper. ?>
+						<span class="sr-route__art" data-sr-parallax="4"><?php echo $sr_gota_motif; // phpcs:ignore WordPress.Security.EscapeOutput ?></span>
+					</div>
+					<div class="sr-route__copy"><span class="sr-route__index">03 · <?php esc_html_e( 'Collection', 'samina-rasul' ); ?></span><h3><?php esc_html_e( 'Dhanak', 'samina-rasul' ); ?></h3><p><?php esc_html_e( 'Refined ready pieces with signature Samina Rasul craftsmanship.', 'samina-rasul' ); ?></p><span class="sr-route__cta"><?php esc_html_e( 'View Collection', 'samina-rasul' ); ?> <b aria-hidden="true">→</b></span></div>
+				</a>
+			</nav>
+		</div>
+	</section>
+
+	<!-- 02a · Our Story: framed portrait with the display type breaking over it,
+	     opposite a hairline-ruled list of the three pillars. -->
+	<?php
+	$sr_story_image  = $sr_img['story'];
+	$sr_story_alt    = __( 'A Samina Rasul piece, hand embellished in the atelier', 'samina-rasul' );
+	$sr_story_pillars = array(
+		array(
+			'mark'  => 'craft',
+			'title' => __( 'Passionate <em>Craftsmanship</em>', 'samina-rasul' ),
+			'copy'  => __( 'Every piece created with love, and a stubborn dedication to perfection.', 'samina-rasul' ),
+		),
+		array(
+			'mark'  => 'quality',
+			'title' => __( 'Premium <em>Quality</em>', 'samina-rasul' ),
+			'copy'  => __( 'Only the finest fabrics, and techniques practised for generations.', 'samina-rasul' ),
+		),
+		array(
+			'mark'  => 'touch',
+			'title' => __( 'Personal <em>Touch</em>', 'samina-rasul' ),
+			'copy'  => __( 'Custom consultations that bring your own unique vision to life.', 'samina-rasul' ),
+		),
+	);
+	?>
+	<section class="sr-section sr-story">
+		<div class="sr-section__inner sr-story__layout">
+			<div class="sr-story__visual" data-sr-reveal>
+				<figure class="sr-story__frame" data-sr-parallax="5">
+					<?php if ( $sr_story_image ) : ?>
+						<img src="<?php echo esc_url( $sr_story_image ); ?>" alt="<?php echo esc_attr( $sr_story_alt ); ?>" loading="lazy" decoding="async">
+					<?php else : ?>
+						<span class="sr-ph sr-ph--warm" aria-hidden="true"><?php echo $sr_ornament; // phpcs:ignore WordPress.Security.EscapeOutput ?></span>
+					<?php endif; ?>
+				</figure>
+				<h2 class="sr-story__title"><?php echo wp_kses_post( __( 'Our <em>Story</em>', 'samina-rasul' ) ); ?></h2>
+			</div>
+
+			<div class="sr-story__aside">
+				<header class="sr-story__intro" data-sr-reveal>
+					<span class="sr-eyebrow sr-eyebrow--ruled"><?php esc_html_e( 'The house of Samina Rasul', 'samina-rasul' ); ?></span>
+					<p class="sr-story__lede"><?php echo wp_kses_post( __( 'Born from a passion for the timeless art of Eastern couture, and a vision to create pieces that celebrate femininity and <em>elegance</em>.', 'samina-rasul' ) ); ?></p>
+				</header>
+
+				<ul class="sr-story__pillars" data-sr-reveal>
+					<?php foreach ( $sr_story_pillars as $sr_i => $sr_pillar ) : ?>
+						<li class="sr-pillar">
+							<span class="sr-pillar__index" aria-hidden="true"><?php echo esc_html( sprintf( '%02d', $sr_i + 1 ) ); ?></span>
+							<div class="sr-pillar__body">
+								<h3><?php echo wp_kses_post( $sr_pillar['title'] ); ?></h3>
+								<div class="sr-pillar__reveal"><p><?php echo esc_html( $sr_pillar['copy'] ); ?></p></div>
+							</div>
+							<span class="sr-pillar__mark"><?php echo $sr_pillar_marks[ $sr_pillar['mark'] ]; // phpcs:ignore WordPress.Security.EscapeOutput -- static, hand-written inline SVG. ?></span>
+						</li>
+					<?php endforeach; ?>
+				</ul>
+
+				<a class="sr-story__more" href="<?php echo esc_url( home_url( '/about-us/' ) ); ?>" data-sr-reveal>
+					<span><?php esc_html_e( 'Learn more about us', 'samina-rasul' ); ?></span>
+					<b aria-hidden="true">→</b>
+				</a>
 			</div>
 		</div>
 	</section>
@@ -152,32 +284,42 @@ $sr_resham_motif = '<svg class="sr-motif sr-motif--resham" viewBox="0 0 180 140"
 	<!-- 05 · The first path: Formals -->
 	<section class="sr-split">
 		<div class="sr-split__visual">
-			<div class="sr-ph sr-ph--warm sr-ph--tall" data-sr-parallax="9">
-				<?php echo $sr_ornament; // phpcs:ignore WordPress.Security.EscapeOutput ?>
-				<span class="sr-ph__caption"><?php esc_html_e( 'Formals lookbook imagery pending', 'samina-rasul' ); ?></span>
-			</div>
+			<?php if ( $sr_img['formals'] ) : ?>
+				<img class="sr-split__img" src="<?php echo esc_url( $sr_img['formals'] ); ?>" alt="<?php esc_attr_e( 'A Samina Rasul formal piece', 'samina-rasul' ); ?>" loading="lazy" decoding="async">
+			<?php else : ?>
+				<div class="sr-ph sr-ph--warm sr-ph--tall" data-sr-parallax="9">
+					<?php echo $sr_ornament; // phpcs:ignore WordPress.Security.EscapeOutput ?>
+					<span class="sr-ph__caption"><?php esc_html_e( 'Formals lookbook imagery pending', 'samina-rasul' ); ?></span>
+				</div>
+			<?php endif; ?>
 		</div>
 		<div class="sr-split__content" data-sr-reveal>
+			<span class="sr-split__motif" data-sr-parallax="4" aria-hidden="true"><?php echo $sr_mukesh_motif; // phpcs:ignore WordPress.Security.EscapeOutput ?></span>
 			<span class="sr-eyebrow"><?php esc_html_e( 'The Formals', 'samina-rasul' ); ?></span>
 			<h2><?php echo wp_kses_post( __( 'Worn once,<br><em>remembered longer</em>', 'samina-rasul' ) ); ?></h2>
 			<p><?php esc_html_e( 'Occasionwear you can order today. Choose your pieces and size, add a fabric upgrade if you wish. Every order is cut and embellished by hand, for you alone.', 'samina-rasul' ); ?></p>
-			<a class="button" href="<?php echo esc_url( get_term_link( 'formals', 'product_cat' ) ); ?>"><span><?php esc_html_e( 'Shop Formals', 'samina-rasul' ); ?></span></a>
+			<a class="button" href="<?php echo esc_url( sr_term_url( 'formals', 'product_cat' ) ); ?>"><span><?php esc_html_e( 'Shop Formals', 'samina-rasul' ); ?></span></a>
 		</div>
 	</section>
 
 	<!-- 06 · The second path: Bridals -->
 	<section class="sr-split sr-split--flip sr-split--burgundy">
 		<div class="sr-split__visual">
-			<div class="sr-ph sr-ph--deep sr-ph--tall" data-sr-parallax="9">
-				<?php echo $sr_ornament; // phpcs:ignore WordPress.Security.EscapeOutput ?>
-				<span class="sr-ph__caption"><?php esc_html_e( 'Bridals campaign imagery pending', 'samina-rasul' ); ?></span>
-			</div>
+			<?php if ( $sr_img['bridals'] ) : ?>
+				<img class="sr-split__img" src="<?php echo esc_url( $sr_img['bridals'] ); ?>" alt="<?php esc_attr_e( 'A Samina Rasul bridal piece', 'samina-rasul' ); ?>" loading="lazy" decoding="async">
+			<?php else : ?>
+				<div class="sr-ph sr-ph--deep sr-ph--tall" data-sr-parallax="9">
+					<?php echo $sr_ornament; // phpcs:ignore WordPress.Security.EscapeOutput ?>
+					<span class="sr-ph__caption"><?php esc_html_e( 'Bridals campaign imagery pending', 'samina-rasul' ); ?></span>
+				</div>
+			<?php endif; ?>
 		</div>
 		<div class="sr-split__content" data-sr-reveal>
+			<span class="sr-split__motif" data-sr-parallax="4" aria-hidden="true"><?php echo $sr_zardozi_motif; // phpcs:ignore WordPress.Security.EscapeOutput ?></span>
 			<span class="sr-eyebrow"><?php esc_html_e( 'The Bridals', 'samina-rasul' ); ?></span>
 			<h2><?php echo wp_kses_post( __( 'Begin the<br><em>conversation</em>', 'samina-rasul' ) ); ?></h2>
 			<p><?php esc_html_e( 'A bridal piece is never bought from a shelf, so you will find no price tags here. Tell us about your day, and the atelier will design around you, from fabric and embellishment to silhouette and fit.', 'samina-rasul' ); ?></p>
-			<a class="button sr-ghost" href="<?php echo esc_url( get_term_link( 'bridals', 'product_cat' ) ); ?>"><span><?php esc_html_e( 'Explore Bridals', 'samina-rasul' ); ?></span></a>
+			<a class="button sr-ghost" href="<?php echo esc_url( sr_term_url( 'bridals', 'product_cat' ) ); ?>"><span><?php esc_html_e( 'Explore Bridals', 'samina-rasul' ); ?></span></a>
 		</div>
 	</section>
 
@@ -200,43 +342,43 @@ $sr_resham_motif = '<svg class="sr-motif sr-motif--resham" viewBox="0 0 180 140"
 				<span class="sr-eyebrow"><?php esc_html_e( 'How it works', 'samina-rasul' ); ?></span>
 				<h2><?php esc_html_e( 'We take time, here is where it goes', 'samina-rasul' ); ?></h2>
 			</div>
+			<?php
+			$sr_process_steps = array(
+				array(
+					'mark'    => 'measure',
+					'eyebrow' => __( 'First measure', 'samina-rasul' ),
+					'title'   => __( 'The conversation', 'samina-rasul' ),
+					'copy'    => __( 'Order Formals directly with your size, or choose “Customized” and share your measurements. For Bridals, everything starts with a WhatsApp consultation.', 'samina-rasul' ),
+				),
+				array(
+					'mark'    => 'stitch',
+					'eyebrow' => __( 'In the atelier', 'samina-rasul' ),
+					'title'   => __( 'The making', 'samina-rasul' ),
+					'copy'    => __( 'Your piece is cut, embellished and finished by hand over seven to nine weeks. A 50% advance confirms the order, and international orders require 100%.', 'samina-rasul' ),
+				),
+				array(
+					'mark'    => 'ribbon',
+					'eyebrow' => __( 'Final detail', 'samina-rasul' ),
+					'title'   => __( 'The arrival', 'samina-rasul' ),
+					'copy'    => __( 'Made once for you, which is why customized pieces cannot be exchanged. Delivered to your door, ready for the occasion it was imagined for.', 'samina-rasul' ),
+				),
+			);
+			?>
 			<ol class="sr-timeline">
-				<li class="sr-timeline__step">
-					<span class="sr-timeline__marker" aria-hidden="true"></span>
-					<div class="sr-timeline__card">
-						<div class="sr-timeline__heading">
-							<span class="sr-process__num" aria-hidden="true">01</span>
-							<span class="sr-timeline__eyebrow"><?php esc_html_e( 'First measure', 'samina-rasul' ); ?></span>
+				<?php foreach ( $sr_process_steps as $sr_i => $sr_step ) : ?>
+					<li class="sr-timeline__step">
+						<span class="sr-timeline__marker" aria-hidden="true"></span>
+						<div class="sr-timeline__card">
+							<div class="sr-timeline__heading">
+								<span class="sr-process__num" aria-hidden="true"><?php echo esc_html( sprintf( '%02d', $sr_i + 1 ) ); ?></span>
+								<span class="sr-timeline__eyebrow"><?php echo esc_html( $sr_step['eyebrow'] ); ?></span>
+							</div>
+							<div class="sr-timeline__motif"><?php echo $sr_process_marks[ $sr_step['mark'] ]; // phpcs:ignore WordPress.Security.EscapeOutput -- static, hand-written inline SVG. ?></div>
+							<h3><?php echo esc_html( $sr_step['title'] ); ?></h3>
+							<p><?php echo esc_html( $sr_step['copy'] ); ?></p>
 						</div>
-						<div class="sr-timeline__motif"><?php echo $sr_stitch_motif; // phpcs:ignore WordPress.Security.EscapeOutput ?></div>
-						<h3><?php esc_html_e( 'The conversation', 'samina-rasul' ); ?></h3>
-						<p><?php esc_html_e( 'Order Formals directly with your size, or choose “Customized” and share your measurements. For Bridals, everything starts with a WhatsApp consultation.', 'samina-rasul' ); ?></p>
-					</div>
-				</li>
-				<li class="sr-timeline__step">
-					<span class="sr-timeline__marker" aria-hidden="true"></span>
-					<div class="sr-timeline__card">
-						<div class="sr-timeline__heading">
-							<span class="sr-process__num" aria-hidden="true">02</span>
-							<span class="sr-timeline__eyebrow"><?php esc_html_e( 'In the atelier', 'samina-rasul' ); ?></span>
-						</div>
-						<div class="sr-timeline__motif"><?php echo $sr_stitch_motif; // phpcs:ignore WordPress.Security.EscapeOutput ?></div>
-						<h3><?php esc_html_e( 'The making', 'samina-rasul' ); ?></h3>
-						<p><?php esc_html_e( 'Your piece is cut, embellished and finished by hand over seven to nine weeks. A 50% advance confirms the order, and international orders require 100%.', 'samina-rasul' ); ?></p>
-					</div>
-				</li>
-				<li class="sr-timeline__step">
-					<span class="sr-timeline__marker" aria-hidden="true"></span>
-					<div class="sr-timeline__card">
-						<div class="sr-timeline__heading">
-							<span class="sr-process__num" aria-hidden="true">03</span>
-							<span class="sr-timeline__eyebrow"><?php esc_html_e( 'Final detail', 'samina-rasul' ); ?></span>
-						</div>
-						<div class="sr-timeline__motif"><?php echo $sr_stitch_motif; // phpcs:ignore WordPress.Security.EscapeOutput ?></div>
-						<h3><?php esc_html_e( 'The arrival', 'samina-rasul' ); ?></h3>
-						<p><?php esc_html_e( 'Made once for you, which is why customized pieces cannot be exchanged. Delivered to your door, ready for the occasion it was imagined for.', 'samina-rasul' ); ?></p>
-					</div>
-				</li>
+					</li>
+				<?php endforeach; ?>
 			</ol>
 		</div>
 	</section>
@@ -247,11 +389,33 @@ $sr_resham_motif = '<svg class="sr-motif sr-motif--resham" viewBox="0 0 180 140"
 			<span class="sr-eyebrow"><?php esc_html_e( 'The list', 'samina-rasul' ); ?></span>
 			<h2><?php esc_html_e( 'First to see each drop', 'samina-rasul' ); ?></h2>
 			<p><?php esc_html_e( 'One email when a new collection opens for order. Nothing else.', 'samina-rasul' ); ?></p>
-			<form action="#" method="post" aria-label="<?php esc_attr_e( 'Newsletter signup', 'samina-rasul' ); ?>">
+			<?php if ( isset( $_GET['sr_sub'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only status flag, no action taken. ?>
+				<p class="sr-newsletter__status" role="status">
+					<?php
+					echo 'ok' === $_GET['sr_sub'] // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+						? esc_html__( 'Thank you. You are on the list.', 'samina-rasul' )
+						: esc_html__( 'That email address did not look right. Please try again.', 'samina-rasul' );
+					?>
+				</p>
+			<?php endif; ?>
+			<form action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" method="post" aria-label="<?php esc_attr_e( 'Newsletter signup', 'samina-rasul' ); ?>">
+				<input type="hidden" name="action" value="sr_newsletter">
+				<?php wp_nonce_field( 'sr_newsletter', 'sr_newsletter_nonce' ); ?>
 				<div class="sr-field">
-					<input type="email" name="sr_newsletter_email" id="sr_newsletter_email" placeholder=" " required>
+					<input type="email" name="sr_newsletter_email" id="sr_newsletter_email" placeholder=" " required autocomplete="email">
 					<label for="sr_newsletter_email"><?php esc_html_e( 'Your email address', 'samina-rasul' ); ?></label>
 				</div>
+				<?php // Honeypot: a real visitor never fills this; bots usually do. ?>
+				<div class="sr-hp" aria-hidden="true">
+					<label for="sr_website"><?php esc_html_e( 'Leave this field empty', 'samina-rasul' ); ?></label>
+					<input type="text" name="sr_website" id="sr_website" tabindex="-1" autocomplete="off">
+				</div>
+				<p class="sr-newsletter__consent">
+					<label>
+						<input type="checkbox" name="sr_consent" value="1" required>
+						<?php esc_html_e( 'I agree to receive occasional emails about new collections.', 'samina-rasul' ); ?>
+					</label>
+				</p>
 				<button type="submit" class="button"><span><?php esc_html_e( 'Subscribe', 'samina-rasul' ); ?></span></button>
 			</form>
 		</div>

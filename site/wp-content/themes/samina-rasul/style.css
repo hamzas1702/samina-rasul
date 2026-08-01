@@ -19,8 +19,11 @@ Text Domain: samina-rasul
 	--sr-font-body: "Archivo", "Helvetica Neue", sans-serif;
 
 	--sr-measure: 62ch;
+	/* One content width for the whole site. Every section centres its content
+	 * on this; full-bleed backgrounds run edge to edge, their content does not. */
 	--sr-content-max: 1200px;
-	--sr-gutter: clamp(1.25rem, 4vw, 3rem);
+	/* Side padding, matched to the breathing room the Formals/Bridals splits use. */
+	--sr-gutter: clamp(1.5rem, 5vw, 4rem);
 	--sr-section: clamp(3.5rem, 9vw, 7.5rem);
 }
 
@@ -168,19 +171,361 @@ a:hover { color: var(--sr-burgundy-soft); }
 .site-header-cart .cart-contents,
 .site-header .storefront-header-search { color: var(--sr-ink); }
 
+/* ---------- Header icon row (search / logo / account / cart) ----------
+ * Storefront's default header is a float grid; from 768px up we lay the
+ * top row out as flex with the wordmark mathematically centered via
+ * absolute positioning, independent of how wide the left/right icon
+ * groups are. Below 768px the stock Storefront + handheld-bar layout is
+ * left completely alone. */
+@media (min-width: 768px) {
+	/* Header and nav share the site's content width so the wordmark, icons and
+	 * menu line up with the sections below them. */
+	.site-header .col-full,
+	.storefront-primary-navigation .col-full {
+		width: min(100%, var(--sr-content-max));
+		max-width: none;
+		margin-inline: auto;
+		padding-inline: 0;
+	}
+	.site-header,
+	.storefront-primary-navigation { padding-inline: var(--sr-gutter); }
+	.site-header .col-full {
+		display: flex;
+		align-items: center;
+		position: relative;
+		gap: 1.25rem;
+	}
+	.site-header .col-full .site-branding {
+		position: absolute;
+		left: 50%;
+		top: 50%;
+		width: auto;
+		float: none;
+		margin: 0;
+		transform: translate(-50%, -50%);
+	}
+	/* Search anchors the left edge; account and cart pair off to the right.
+	 * The auto inline-end margin on the search absorbs the free space the
+	 * absolutely-positioned wordmark leaves behind, so the two groups sit
+	 * hard against opposite edges whatever the wordmark's width.
+	 *
+	 * Scoped through .woocommerce-active to outrank Storefront's own
+	 * `.woocommerce-active .site-header .site-search`, which otherwise wins on
+	 * specificity and floats this right at a percentage width. */
+	.woocommerce-active .site-header .site-search,
+	.site-header .site-search {
+		order: 1;
+		width: auto;
+		float: none;
+		margin-inline-end: auto;
+	}
+	.sr-header-icon--account { order: 2; }
+	.site-header #site-header-cart { order: 3; }
+
+	.storefront-primary-navigation .col-full {
+		display: flex;
+		justify-content: center;
+	}
+	.main-navigation { width: auto; float: none; margin: 0; }
+	.main-navigation > div.primary-navigation > ul.menu {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: center;
+		gap: 0.5rem 2.25rem;
+	}
+}
+
+/* Shared icon-button look for search / account / cart triggers. */
+.sr-header-icon,
+.site-header .site-search button[type="submit"] {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 2.25rem;
+	height: 2.25rem;
+	padding: 0;
+	background: transparent;
+	border: 0;
+	color: var(--sr-ink);
+	cursor: pointer;
+}
+.sr-header-icon:hover,
+.site-header .site-search button[type="submit"]:hover { background: transparent; color: var(--sr-burgundy); }
+.sr-header-icon svg,
+.site-header .site-search button[type="submit"] svg,
+.site-header .cart-contents svg {
+	display: block;
+	width: 1.2rem;
+	height: 1.2rem;
+	stroke: currentColor;
+	pointer-events: none; /* decorative; let clicks always fall through to the control */
+}
+
+/* Storefront paints its own Font Awesome glyphs into the search form and the
+ * cart link. Both duplicate the hand-drawn SVGs this theme injects, so the
+ * glyph layer is switched off and the cart pseudo is left free for the count
+ * badge below. */
+.site-header .site-search .woocommerce-product-search::before,
+.site-header #site-header-cart .cart-contents::after { content: none; }
+
+/* Search: collapse to an icon, expand the field on demand. */
+.site-header .site-search .widget { display: contents; }
+.site-header .woocommerce-product-search {
+	display: flex;
+	align-items: center;
+	position: relative;
+}
+.site-header .woocommerce-product-search .search-field {
+	/* !important: Storefront's own .widget_product_search form input[type=search]
+	 * rule outranks a same-depth class selector on element-count, regardless of
+	 * cascade order - see specificity note above the icon-button rules.
+	 * Hidden via display (not width:0) by default: this exact input proved
+	 * unwilling to honour width/max-width/flex-basis overrides - stylesheet
+	 * or inline, every method tried - in testing, so the collapse/expand is
+	 * a display swap instead, sized by its own intrinsic default width. */
+	display: none !important;
+	padding: 0.35em 0.1em;
+	margin: 0;
+	border: 0;
+	border-bottom: 1px solid var(--sr-line);
+	background: transparent;
+	font-family: var(--sr-font-body);
+	font-size: 0.85rem;
+	color: var(--sr-ink);
+}
+.site-header .site-search.is-open .woocommerce-product-search .search-field {
+	display: block !important;
+}
+.site-header .woocommerce-product-search button[type="submit"] {
+	/* !important: same Storefront specificity fight - its widget CSS visually
+	 * clips this button (position:absolute, 1px box) by default. */
+	position: static !important;
+	clip: auto !important;
+	clip-path: none !important;
+	width: 2.25rem !important;
+	height: 2.25rem !important;
+	font-size: 0;
+	order: 2;
+}
+
+/* Cart icon (bag outline) + live count badge. Price/count text stays in
+ * the DOM for assistive tech and WooCommerce's AJAX fragment refresh;
+ * it's only visually hidden, using WordPress core's own screen-reader-text
+ * clip technique rather than display:none. */
+.site-header #site-header-cart { list-style: none; margin: 0; padding: 0; width: auto; float: none; }
+.site-header #site-header-cart > li { display: contents; }
+.site-header #site-header-cart .widget_shopping_cart { display: none; }
+.site-header .cart-contents {
+	position: relative;
+	display: inline-flex;
+	width: 2.25rem;
+	height: 2.25rem;
+	align-items: center;
+	justify-content: center;
+	color: var(--sr-ink);
+}
+.site-header .cart-contents:hover { color: var(--sr-burgundy); }
+.site-header #site-header-cart .cart-contents.has-items::after {
+	content: attr(data-count);
+	position: absolute;
+	top: -0.15rem;
+	right: -0.15rem;
+	min-width: 1rem;
+	height: 1rem;
+	padding: 0 0.2rem;
+	border-radius: 999px;
+	background: var(--sr-burgundy);
+	color: var(--sr-white);
+	font-family: var(--sr-font-body);
+	font-size: 0.62rem;
+	font-weight: 700;
+	line-height: 1rem;
+	text-align: center;
+}
+.site-header .cart-contents .woocommerce-Price-amount,
+.site-header .cart-contents .count {
+	position: absolute !important;
+	width: 1px; height: 1px;
+	padding: 0; margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
+}
+
 /* ---------- Sections ---------- */
-/* Break homepage sections out of Storefront's boxed container to full-bleed. */
-.sr-home {
+/* Break homepage and archive sections out of Storefront's boxed container. */
+.sr-home,
+.sr-archive {
 	width: 100vw;
 	margin-left: calc(50% - 50vw);
 }
 .home .site-content,
-.home .site-main {
+.home .site-main,
+.tax-product_cat .site-content,
+.tax-product_cat .site-main {
 	padding-top: 0;
 	margin-bottom: 0;
 }
-.home .site-header {
+.home .site-header,
+.tax-product_cat .site-header {
 	margin-bottom: 0 !important;
+}
+/* Storefront prints its own archive header; this template supplies one. */
+.tax-product_cat .woocommerce-products-header,
+.tax-product_cat .storefront-breadcrumb { display: none; }
+
+/* ---------- Category landing masthead ---------- */
+.sr-archive__hero {
+	position: relative;
+	display: grid;
+	place-items: center;
+	overflow: clip;
+	text-align: center;
+	padding: clamp(5rem, 12vw, 8.5rem) var(--sr-gutter) clamp(4rem, 9vw, 6rem);
+	min-height: min(62vh, 620px);
+}
+.sr-archive__bg {
+	position: absolute;
+	/* Overhang beyond the parallax travel so scrolling never exposes an edge. */
+	left: 0;
+	right: 0;
+	top: -10%;
+	height: 120%;
+	z-index: 0;
+	display: grid;
+	place-items: center;
+}
+.sr-archive__hero--warm .sr-archive__bg {
+	background:
+		radial-gradient(120% 90% at 25% 15%, rgba(74, 31, 36, 0.1), transparent 55%),
+		radial-gradient(110% 100% at 80% 85%, rgba(74, 31, 36, 0.18), transparent 60%),
+		linear-gradient(160deg, #f4ede1 0%, var(--sr-cream) 45%, #ecdfcd 100%);
+}
+.sr-archive__hero--deep .sr-archive__bg {
+	background:
+		radial-gradient(120% 90% at 30% 20%, rgba(248, 244, 237, 0.1), transparent 55%),
+		radial-gradient(130% 110% at 75% 90%, rgba(20, 8, 10, 0.55), transparent 65%),
+		linear-gradient(160deg, #5d2830 0%, var(--sr-burgundy) 55%, #35161a 100%);
+}
+.sr-archive__bg .sr-ornament {
+	width: min(80%, 560px);
+	opacity: .12;
+}
+.sr-archive__hero--warm .sr-archive__bg .sr-ornament { color: var(--sr-burgundy); }
+.sr-archive__hero--deep .sr-archive__bg .sr-ornament { color: var(--sr-cream); }
+.sr-archive__img {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	object-position: center 28%;
+}
+.sr-archive__scrim { position: absolute; inset: 0; z-index: 0; }
+/* Only a photograph needs a scrim; the gradients already carry the contrast. */
+.sr-archive__hero--photo.sr-archive__hero--warm .sr-archive__scrim {
+	background: linear-gradient(180deg, rgba(248, 244, 237, .58) 0%, rgba(248, 244, 237, .42) 50%, rgba(248, 244, 237, .72) 100%);
+}
+.sr-archive__hero--photo.sr-archive__hero--deep .sr-archive__scrim {
+	background: linear-gradient(180deg, rgba(28, 14, 16, .55) 0%, rgba(28, 14, 16, .38) 50%, rgba(28, 14, 16, .7) 100%);
+}
+.sr-archive__intro {
+	position: relative;
+	z-index: 1;
+	width: min(100%, 720px);
+}
+.sr-archive__title {
+	margin: .5rem 0 0;
+	font-size: clamp(2.8rem, 8vw, 6rem);
+	line-height: .92;
+	letter-spacing: -.03em;
+}
+.sr-archive__lede {
+	margin: 1.4rem auto 0;
+	max-width: 52ch;
+	font-size: 1.02rem;
+	line-height: 1.75;
+}
+.sr-archive__lede p:last-child { margin-bottom: 0; }
+.sr-archive__count {
+	display: inline-block;
+	margin-top: 1.6rem;
+	padding-top: 1.1rem;
+	border-top: 1px solid currentColor;
+	font-family: var(--sr-font-body);
+	font-size: .66rem;
+	font-weight: 600;
+	letter-spacing: .22em;
+	text-transform: uppercase;
+	opacity: .72;
+}
+/* Deep tone inverts the type. */
+.sr-archive__hero--deep .sr-archive__title,
+.sr-archive__hero--deep .sr-eyebrow { color: var(--sr-cream); }
+.sr-archive__hero--deep .sr-archive__lede,
+.sr-archive__hero--deep .sr-archive__count { color: rgba(248, 244, 237, .88); }
+
+/* ---------- Category product grid ---------- */
+.sr-archive__toolbar {
+	display: flex;
+	justify-content: flex-end;
+	margin-bottom: 2rem;
+}
+.sr-archive__toolbar .woocommerce-ordering { margin: 0; }
+/* Every product grid on the site - category template, shop, search results -
+ * uses one layout. The horizontal rail keeps its own flex rule, which outranks
+ * this on specificity. */
+ul.products {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+	gap: clamp(1.1rem, 2vw, 1.75rem);
+	margin: 0;
+	padding: 0;
+}
+/* Storefront floats and width-hacks loop items; the grid owns layout here. */
+ul.products li.product {
+	float: none !important;
+	width: auto !important;
+	margin: 0 !important;
+	clear: none !important;
+}
+ul.products::before,
+ul.products::after { content: none; }
+
+/* ---------- Shop / search archives that do not use the category template ---------- */
+.woocommerce-products-header {
+	position: relative;
+	margin: 0 0 clamp(2rem, 4vw, 3rem);
+	padding: clamp(3rem, 7vw, 5rem) var(--sr-gutter);
+	text-align: center;
+	background:
+		radial-gradient(120% 90% at 25% 15%, rgba(74, 31, 36, 0.08), transparent 55%),
+		linear-gradient(160deg, #f4ede1 0%, var(--sr-cream) 45%, #ecdfcd 100%);
+}
+.woocommerce-products-header__title {
+	margin: 0;
+	font-size: clamp(2rem, 5vw, 3.4rem);
+	line-height: 1.02;
+	letter-spacing: -.02em;
+}
+.woocommerce-products-header .term-description {
+	max-width: 52ch;
+	margin: 1.1rem auto 0;
+}
+.search-results .site-content,
+.post-type-archive-product .site-content { padding-top: 0; }
+/* The result count and ordering select sit on one quiet line. */
+.woocommerce-result-count,
+.woocommerce-ordering {
+	font-family: var(--sr-font-body);
+	font-size: .78rem;
+	letter-spacing: .04em;
+}
+.sr-archive__empty {
+	max-width: 46ch;
+	margin: 0 auto 1.75rem;
+	text-align: center;
 }
 .sr-section {
 	padding: var(--sr-section) var(--sr-gutter);
@@ -206,7 +551,7 @@ a:hover { color: var(--sr-burgundy-soft); }
 	max-width: 16ch;
 	margin: 0 auto 1.5rem;
 	font-weight: 470;
-	font-size: clamp(2.6rem, 7.5vw, 5.4rem);
+	font-size: clamp(2.1rem, 5.4vw, 3.9rem);
 }
 .sr-hero h1 em {
 	font-style: italic;
@@ -215,7 +560,7 @@ a:hover { color: var(--sr-burgundy-soft); }
 .sr-hero p {
 	max-width: 46ch;
 	margin: 0 auto 2.25rem;
-	font-size: 1.05rem;
+	font-size: 0.96rem;
 }
 .sr-hero .sr-hero-actions {
 	display: flex;
@@ -247,21 +592,66 @@ a:hover { color: var(--sr-burgundy-soft); }
 	display: grid;
 	grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 	align-items: stretch;
+	/* The shine gradient that used to sit under the placeholder art, now moved
+	 * to the copy side. Set on the whole section rather than the text column:
+	 * the photograph is opaque and covers its own column, so this only ever
+	 * shows behind the text - and it keeps working when the columns stack. */
+	background:
+		radial-gradient(120% 90% at 25% 15%, rgba(74, 31, 36, 0.1), transparent 55%),
+		radial-gradient(110% 100% at 80% 85%, rgba(74, 31, 36, 0.18), transparent 60%),
+		linear-gradient(160deg, #f4ede1 0%, var(--sr-cream) 45%, #ecdfcd 100%);
 }
 .sr-split__visual {
 	position: relative;
 	overflow: hidden;
 	min-height: clamp(420px, 72vh, 760px);
 }
+.sr-split__img {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	object-position: center 22%;
+}
+/* House motif sits behind the copy as a watermark, not over the photograph.
+ * Kept faint enough that overlapping the button reads as texture, not clutter. */
+.sr-split__motif {
+	position: absolute;
+	z-index: 0;
+	/* Always the right of the copy block, in both splits. The text and button
+	 * are left-aligned either way, so the right is the only reliably free
+	 * space - mirroring it to the "outer" edge put it under the button on the
+	 * flipped section. */
+	right: clamp(1rem, 3vw, 2.5rem);
+	bottom: clamp(1.5rem, 4vw, 3rem);
+	width: clamp(120px, 15vw, 200px);
+	color: var(--sr-burgundy);
+	opacity: .13;
+	pointer-events: none;
+}
+.sr-split--burgundy .sr-split__motif { color: var(--sr-cream); opacity: .18; }
+.sr-split__motif svg { display: block; width: 100%; height: auto; }
+/* Keep the copy above the watermark. */
+.sr-split__content > *:not(.sr-split__motif) { position: relative; z-index: 1; }
 .sr-split__content {
+	position: relative;
+	overflow: hidden;
 	display: flex;
 	flex-direction: column;
 	justify-content: center;
 	align-items: flex-start;
 	padding: clamp(3.5rem, 8vw, 7rem) clamp(2rem, 6vw, 6rem);
-	width: min(100%, 640px);
+	/* Half the shared content width plus its padding, so the text column lines
+	 * up with the centred container the rest of the site uses instead of
+	 * sprawling on wide screens. */
+	width: min(100%, calc(var(--sr-content-max) / 2 + clamp(2rem, 6vw, 6rem)));
 	box-sizing: border-box;
 }
+/* Non-flipped: content is the right column, so hug the centre line. */
+.sr-split:not(.sr-split--flip) .sr-split__content { margin-right: auto; }
+/* Flipped: content is the left column, so hug the centre line from the other side. */
+.sr-split--flip .sr-split__content { margin-left: auto; }
 .sr-split__content h2 {
 	font-size: clamp(2rem, 3.8vw, 3.2rem);
 	margin-bottom: 1.25rem;
@@ -272,7 +662,12 @@ a:hover { color: var(--sr-burgundy-soft); }
 	margin-bottom: 2rem;
 }
 .sr-split--flip .sr-split__visual { order: 2; }
-.sr-split--burgundy { background: var(--sr-burgundy); }
+.sr-split--burgundy {
+	background:
+		radial-gradient(120% 90% at 30% 20%, rgba(248, 244, 237, 0.1), transparent 55%),
+		radial-gradient(130% 110% at 75% 90%, rgba(20, 8, 10, 0.55), transparent 65%),
+		linear-gradient(160deg, #5d2830 0%, var(--sr-burgundy) 55%, #35161a 100%);
+}
 .sr-split--burgundy .sr-split__content { color: rgba(248, 244, 237, 0.88); }
 .sr-split--burgundy .sr-split__content h2,
 .sr-split--burgundy .sr-split__content .sr-eyebrow { color: var(--sr-cream); }
@@ -305,47 +700,227 @@ a:hover { color: var(--sr-burgundy-soft); }
 	margin-right: 0.2em;
 }
 
-/* ---------- Shop gateway: the homepage's early, clear direction of travel ---------- */
-.sr-shop-gateway {
+/* ---------- Our Story: oversized type against staggered, asymmetric cards ---------- */
+.sr-story {
 	position: relative;
 	background: var(--sr-cream);
-	overflow: hidden;
+	/* clip, not hidden: `overflow: hidden` turns this into a scroll container,
+	 * which silently disables `position: sticky` on the intro below. `clip`
+	 * contains the decorative grid without creating one. */
+	overflow: clip;
 }
-.sr-shop-gateway::before {
+/* Diamond lattice drawn from two crossed hairline gradients - the jaali
+ * pattern the house uses on packaging, at the weight of a watermark. */
+.sr-story::before {
 	content: "";
 	position: absolute;
 	inset: 0;
 	pointer-events: none;
-	background: linear-gradient(90deg, rgba(74,31,36,.045) 1px, transparent 1px), linear-gradient(rgba(74,31,36,.035) 1px, transparent 1px);
-	background-size: 56px 56px;
-	mask-image: linear-gradient(90deg, black, transparent 72%);
+	background:
+		repeating-linear-gradient(45deg, rgba(74,31,36,.055) 0 1px, transparent 1px 34px),
+		repeating-linear-gradient(-45deg, rgba(74,31,36,.055) 0 1px, transparent 1px 34px);
+	mask-image: radial-gradient(120% 100% at 20% 30%, black, transparent 78%);
 }
-.sr-shop-gateway__layout {
+.sr-story__layout {
 	position: relative;
 	display: grid;
-	grid-template-columns: minmax(230px, .56fr) minmax(0, 1.44fr);
-	gap: clamp(1.5rem, 5vw, 5rem);
-	align-items: start;
+	gap: clamp(2.5rem, 5vw, 4.5rem);
+	align-items: center;
 }
-.sr-shop-gateway__intro {
-	position: sticky;
-	top: 8rem;
-	max-width: 360px;
-	padding-top: clamp(.5rem, 5vw, 4.5rem);
+
+/* Portrait, with the display type breaking out over its lower-left corner. */
+.sr-story__visual { position: relative; }
+.sr-story__frame {
+	position: relative;
+	margin: 0 0 0 auto;
+	width: min(100%, 460px);
+	aspect-ratio: 4 / 5;
+	overflow: hidden;
+	box-shadow: 0 30px 60px -28px rgba(74,31,36,.42);
 }
-.sr-shop-gateway__seal { width: 108px; color: var(--sr-burgundy); opacity: .72; margin-bottom: 2rem; }
-.sr-shop-gateway__intro h2 {
-	font-size: clamp(2.25rem, 3.6vw, 3.8rem);
-	line-height: .98;
-	margin: .65rem 0 1.15rem;
+.sr-story__frame img,
+.sr-story__frame .sr-ph {
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
 }
-.sr-shop-gateway__intro h2 em { font-style: italic; font-weight: 420; }
-.sr-shop-gateway__intro p { max-width: 33ch; margin-bottom: 0; }
+/* The display title breaks over the lower-left of the photograph, where
+ * burgundy on an unknown image is unreadable. Fade the foot of the frame to
+ * cream so the type always lands on a light field. */
+.sr-story__frame::after {
+	content: "";
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	height: 52%;
+	pointer-events: none;
+	background: linear-gradient(
+		to top,
+		var(--sr-cream) 0%,
+		rgba(248, 244, 237, .92) 22%,
+		rgba(248, 244, 237, .55) 48%,
+		transparent 100%
+	);
+}
+.sr-story__title {
+	position: relative;
+	z-index: 1;
+	margin: -2.4em 0 0;
+	font-size: clamp(3rem, 7.5vw, 6.5rem);
+	line-height: .84;
+	letter-spacing: -.045em;
+	font-weight: 500;
+	color: var(--sr-burgundy);
+	pointer-events: none;
+}
+.sr-story__title em {
+	display: block;
+	margin-left: .6em;
+	font-style: italic;
+	font-weight: 380;
+	letter-spacing: -.015em;
+}
+
+/* Eyebrow with the leading rule from the reference. */
+.sr-eyebrow--ruled { display: flex; align-items: center; gap: .9rem; }
+.sr-eyebrow--ruled::before {
+	content: "";
+	width: clamp(28px, 4vw, 52px);
+	height: 1px;
+	background: currentColor;
+	opacity: .6;
+	flex: none;
+}
+.sr-story__lede {
+	max-width: 32ch;
+	margin: 1.4rem 0 0;
+	font-family: var(--sr-font-display);
+	font-size: clamp(1.35rem, 2.2vw, 1.95rem);
+	line-height: 1.42;
+	letter-spacing: -.015em;
+	color: var(--sr-burgundy);
+}
+.sr-story__lede em { font-style: italic; }
+
+/* The three pillars: hairline-ruled rows that fill with the same layered
+ * gradient the shop cards use, and reveal their line of copy, on hover. */
+.sr-story__pillars {
+	list-style: none;
+	margin: clamp(2rem, 4vw, 3.25rem) 0 0;
+	padding: 0;
+	border-top: 1px solid rgba(74,31,36,.16);
+}
+.sr-pillar {
+	position: relative;
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) auto;
+	align-items: center;
+	gap: clamp(1rem, 2.5vw, 1.9rem);
+	padding: clamp(1.15rem, 2.4vw, 1.7rem) clamp(1rem, 2vw, 1.5rem);
+	border-bottom: 1px solid rgba(74,31,36,.16);
+	isolation: isolate;
+	transition: color 400ms ease;
+}
+.sr-pillar::before {
+	content: "";
+	position: absolute;
+	inset: 0;
+	z-index: -1;
+	opacity: 0;
+	background:
+		radial-gradient(circle at 88% 12%, rgba(255,255,255,.20), transparent 30%),
+		radial-gradient(circle at 12% 88%, rgba(237,188,143,.22), transparent 40%),
+		linear-gradient(135deg, #681f2c, #3d141b 58%, #210a0e);
+	transition: opacity 450ms ease;
+}
+.sr-pillar__index {
+	font: 400 .9rem/1 var(--sr-font-display);
+	font-style: italic;
+	opacity: .55;
+}
+.sr-pillar h3 {
+	/* Inherit, so the row's hover colour reaches the heading - the global
+	 * h1-h3 rule sets burgundy explicitly and would otherwise leave the
+	 * heading unreadable against the filled gradient. */
+	color: inherit;
+	margin: 0;
+	font-size: clamp(1.25rem, 2.1vw, 1.85rem);
+	line-height: 1.15;
+	letter-spacing: -.02em;
+	font-weight: 500;
+	overflow-wrap: normal;
+	word-break: normal;
+	hyphens: none;
+}
+.sr-pillar h3 em { font-style: italic; font-weight: 400; }
+.sr-pillar__reveal p {
+	max-width: 40ch;
+	margin: .55rem 0 0;
+	font-size: .86rem;
+	line-height: 1.6;
+	opacity: .82;
+}
+.sr-pillar__mark {
+	width: clamp(26px, 3vw, 34px);
+	color: currentColor;
+	opacity: 0;
+	transform: translateX(-6px) rotate(-12deg);
+	transition: opacity 450ms ease, transform 550ms cubic-bezier(.22,1,.36,1);
+}
+.sr-pillar-mark { display: block; width: 100%; height: auto; }
+
+/* Hover fill only where a pointer can actually produce it; touch and
+ * keyboard users get every row open by default instead of unreachable copy. */
+@media (hover: hover) and (min-width: 701px) {
+	.sr-pillar__reveal {
+		display: grid;
+		grid-template-rows: 0fr;
+		transition: grid-template-rows 500ms cubic-bezier(.22,1,.36,1);
+	}
+	.sr-pillar__reveal > p { overflow: hidden; }
+	.sr-pillar:hover .sr-pillar__reveal,
+	.sr-pillar:focus-within .sr-pillar__reveal { grid-template-rows: 1fr; }
+}
+.sr-pillar:hover,
+.sr-pillar:focus-within { color: #fffdf8; }
+.sr-pillar:hover::before,
+.sr-pillar:focus-within::before { opacity: 1; }
+.sr-pillar:hover .sr-pillar__mark,
+.sr-pillar:focus-within .sr-pillar__mark { opacity: .95; transform: none; }
+
+.sr-story__more {
+	display: inline-flex;
+	align-items: center;
+	gap: .7rem;
+	margin-top: clamp(1.75rem, 3.5vw, 2.75rem);
+	padding-bottom: .5rem;
+	border-bottom: 1px solid currentColor;
+	font: 600 .7rem/1.2 var(--sr-font-body);
+	letter-spacing: .18em;
+	text-transform: uppercase;
+	color: var(--sr-burgundy);
+	text-decoration: none;
+}
+.sr-story__more b { transition: transform 300ms cubic-bezier(.22,1,.36,1); }
+.sr-story__more:hover b,
+.sr-story__more:focus-visible b { transform: translateX(.4rem); }
+
+@media (min-width: 901px) {
+	.sr-story__layout { grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); }
+	/* Inset the frame inside its column so the display type has somewhere to
+	 * break out to on the left without leaving the page gutter. */
+	.sr-story__frame { width: 85%; }
+}
+
 .sr-shop-gateway__grid {
 	display: grid;
 	grid-template-columns: repeat(2, minmax(0, 1fr));
 	gap: clamp(.75rem, 1.3vw, 1.15rem);
 }
+.sr-shop-gateway__grid--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
 .sr-route {
 	position: relative;
 	display: flex;
@@ -377,7 +952,6 @@ a:hover { color: var(--sr-burgundy-soft); }
 	box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
 }
 .sr-route--bridal::before { background: radial-gradient(circle at 78% 17%, rgba(255,255,255,.23), transparent 26%), radial-gradient(circle at 20% 86%, rgba(237,188,143,.20), transparent 37%), linear-gradient(145deg, #681f2c, #3d141b 58%, #210a0e); }
-.sr-route--collection { min-height: 230px; }
 .sr-route--dhanak { background: #f5ede2; }
 .sr-route--dhanak::before { background: radial-gradient(circle at 10% 86%, rgba(137,88,52,.16), transparent 34%), #f5ede2; }
 .sr-route--ujala { background: #faf8f2; }
@@ -404,9 +978,6 @@ a:hover { color: var(--sr-burgundy-soft); }
 .sr-motif--zardozi .sr-motif__heart { animation: sr-heart-pulse 2.8s ease-in-out infinite; transform-origin: 90px 70px; }
 .sr-motif--gota .sr-motif__ribbons { animation: sr-gota-turn 12s linear infinite; transform-origin: 90px 70px; }
 .sr-motif--gota .sr-motif__spark { animation: sr-sparkle 2.5s ease-in-out infinite; transform-origin: 90px 70px; }
-.sr-motif--resham .sr-motif__thread { animation: sr-thread-draw 4.5s linear infinite; }
-.sr-motif--resham .sr-motif__thread--two { animation-delay: -1.4s; }
-.sr-motif--resham .sr-motif__knot { animation: sr-heart-pulse 3.2s ease-in-out infinite; transform-origin: 91px 74px; }
 .sr-route--bridal .sr-motif__heart { fill: #f5d6b7; }
 .sr-route--bridal .sr-motif--zardozi { filter: drop-shadow(0 4px 12px rgba(0,0,0,.3)); }
 .sr-route__copy { position: relative; z-index: 1; }
@@ -424,7 +995,6 @@ a:hover { color: var(--sr-burgundy-soft); }
 	letter-spacing: -.035em;
 }
 .sr-route--bridal h3 { color: #fffdf8; text-shadow: 0 2px 16px rgba(0,0,0,.32); }
-.sr-route--collection h3 { font-size: clamp(1.75rem, 2.8vw, 2.8rem); margin-bottom: .9rem; }
 .sr-route p { max-width: 31ch; margin: 0 0 1.25rem; font-size: .91rem; line-height: 1.55; }
 .sr-route--bridal p { color: rgba(255,253,248,.91); }
 .sr-route__cta {
@@ -454,13 +1024,71 @@ a:hover { color: var(--sr-burgundy-soft); }
 .sr-route--bridal:focus-visible p,
 .sr-route--bridal:focus-visible .sr-route__index { color: rgba(255,253,248,.91); }
 
+/* ---------- Route card with photography ----------
+ * Image sits on top, copy in the padded panel below. The term image is
+ * optional: without one the branded placeholder fills the same box, so the
+ * layout never shifts when the client adds category photography later. */
+.sr-route--media { min-height: 0; padding: 0; }
+.sr-route__media {
+	position: relative;
+	display: block;
+	aspect-ratio: 4 / 3;
+	overflow: hidden;
+	background: var(--sr-cream);
+}
+.sr-route__img {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	transition: transform 900ms cubic-bezier(.22,1,.36,1);
+}
+.sr-route:hover .sr-route__img { transform: scale(1.055); }
+.sr-route__ph { position: absolute; inset: 0; display: block; }
+.sr-route__ph--warm {
+	background:
+		radial-gradient(120% 90% at 25% 15%, rgba(74,31,36,.10), transparent 55%),
+		radial-gradient(110% 100% at 80% 85%, rgba(74,31,36,.18), transparent 60%),
+		linear-gradient(160deg, #f4ede1 0%, var(--sr-cream) 45%, #ecdfcd 100%);
+}
+.sr-route__ph--deep {
+	background:
+		radial-gradient(120% 90% at 30% 20%, rgba(248,244,237,.10), transparent 55%),
+		radial-gradient(130% 110% at 75% 90%, rgba(20,8,10,.55), transparent 65%),
+		linear-gradient(160deg, #5d2830 0%, var(--sr-burgundy) 55%, #35161a 100%);
+}
+.sr-route--media .sr-route__art {
+	position: absolute;
+	right: clamp(.85rem, 2vw, 1.5rem);
+	bottom: clamp(.85rem, 2vw, 1.5rem);
+	width: min(44%, 148px);
+	margin: 0;
+	opacity: .58;
+}
+.sr-route--media.sr-route--bridal .sr-route__art { color: #f7e2cd; }
+/* Real photography needs less embellishment than the placeholder does. */
+.sr-route__media:has(.sr-route__img) .sr-route__art { opacity: .32; }
+.sr-route--media .sr-route__copy { padding: clamp(1.3rem, 2.5vw, 1.95rem); }
+/* Same anti-wrap treatment as the story cards - these titles are two words
+ * in a third-width column and were breaking mid-word at the old display size. */
+.sr-route--media h3 {
+	font-size: clamp(1.45rem, 2.25vw, 2.05rem);
+	line-height: 1.08;
+	letter-spacing: -.025em;
+	margin: .45rem 0 .6rem;
+	overflow-wrap: normal;
+	word-break: normal;
+	hyphens: none;
+}
+.sr-route--media p { margin-bottom: 1.1rem; }
+
 @keyframes sr-mukesh-glow { from { opacity: .45; transform: scale(.94); } to { opacity: 1; transform: scale(1.05); } }
 @keyframes sr-thread-shift { from { stroke-dashoffset: 0; } to { stroke-dashoffset: -38; } }
 @keyframes sr-zardozi-bloom { from { transform: scale(.89) rotate(-5deg); } to { transform: scale(1.07) rotate(5deg); } }
 @keyframes sr-heart-pulse { 0%,100% { transform: scale(.88); opacity: .62; } 50% { transform: scale(1.15); opacity: 1; } }
 @keyframes sr-gota-turn { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 @keyframes sr-sparkle { 0%,100% { transform: scale(.55) rotate(0); opacity: .45; } 50% { transform: scale(1.24) rotate(45deg); opacity: 1; } }
-@keyframes sr-thread-draw { from { stroke-dashoffset: 0; } to { stroke-dashoffset: -56; } }
 
 /* ---------- Atelier: horizontal product rail, placed high for immediate shopping ---------- */
 .sr-atelier { padding-top: clamp(3rem, 6vw, 5.25rem); }
@@ -557,6 +1185,31 @@ a:hover { color: var(--sr-burgundy-soft); }
 }
 
 /* ---------- Process: vertical scroll-progress timeline ---------- */
+/* Burgundy, so the page keeps alternating cream / deep the way the Bridals
+ * split does, instead of running three pale sections together. Same layered
+ * shine as the deep placeholder, plus a mukesh bead scatter in cream. */
+.sr-process {
+	position: relative;
+	background:
+		radial-gradient(120% 90% at 30% 20%, rgba(248, 244, 237, 0.1), transparent 55%),
+		radial-gradient(130% 110% at 75% 90%, rgba(20, 8, 10, 0.55), transparent 65%),
+		linear-gradient(160deg, #5d2830 0%, var(--sr-burgundy) 55%, #35161a 100%);
+	overflow: clip;
+}
+.sr-process::before {
+	content: "";
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+	background-image: radial-gradient(circle, rgba(248, 244, 237, .16) 1.1px, transparent 1.1px);
+	background-size: 24px 24px;
+	mask-image: radial-gradient(85% 62% at 50% 0%, black, transparent 78%);
+}
+.sr-process > * { position: relative; z-index: 1; }
+/* Section chrome inverts on the dark ground. The step number stays burgundy:
+ * it sits inside the cream card, not on the section background. */
+.sr-process .sr-eyebrow,
+.sr-process .sr-section__intro h2 { color: var(--sr-cream); }
 .sr-process .sr-section__intro { margin-bottom: 4.5rem; }
 .sr-process__num {
 	display: inline-block;
@@ -587,9 +1240,10 @@ a:hover { color: var(--sr-burgundy-soft); }
 	width: 1px;
 	transform: translateX(-50%);
 }
-.sr-timeline::before { background: var(--sr-line); }
+/* Cream on the burgundy ground - the burgundy track/fill was invisible here. */
+.sr-timeline::before { background: rgba(248, 244, 237, .22); }
 .sr-timeline::after {
-	background: var(--sr-burgundy);
+	background: var(--sr-cream);
 	transform-origin: 50% 0%;
 	transform: translateX(-50%) scaleY(var(--sr-progress));
 }
@@ -608,15 +1262,16 @@ a:hover { color: var(--sr-burgundy-soft); }
 	width: 11px;
 	height: 11px;
 	transform: translateX(-50%) rotate(45deg);
-	background: var(--sr-white);
-	border: 1px solid var(--sr-burgundy);
+	background: transparent;
+	border: 1px solid rgba(248, 244, 237, .55);
 	z-index: 1;
 	transition: background-color 380ms ease, box-shadow 380ms ease, transform 380ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .sr-timeline__step.is-lit .sr-timeline__marker {
-	background: var(--sr-burgundy);
+	background: var(--sr-cream);
+	border-color: var(--sr-cream);
 	transform: translateX(-50%) rotate(45deg) scale(1.25);
-	box-shadow: 0 0 0 6px rgba(74, 31, 36, 0.08);
+	box-shadow: 0 0 0 6px rgba(248, 244, 237, 0.12);
 }
 /* Cards — odd on the left (right-aligned), even on the right */
 .sr-timeline__card {
@@ -624,13 +1279,19 @@ a:hover { color: var(--sr-burgundy-soft); }
 	max-width: 410px;
 	padding: clamp(1.25rem, 2.4vw, 1.8rem);
 	border: 1px solid transparent;
-	background: linear-gradient(135deg, rgba(248,244,237,.82), rgba(255,255,255,.5));
-	box-shadow: 0 16px 38px rgba(74, 31, 36, 0);
+	border-radius: 14px;
+	/* Layered creamy shine rather than a flat two-stop fade: a highlight off
+	 * the top-left, a warm shadow into the bottom-right, over the cream base. */
+	background:
+		radial-gradient(115% 85% at 18% 8%, rgba(255, 255, 255, .95), transparent 58%),
+		radial-gradient(100% 80% at 88% 92%, rgba(74, 31, 36, .07), transparent 62%),
+		linear-gradient(135deg, #fbf7f0 0%, var(--sr-cream) 45%, #ece2d2 100%);
+	box-shadow: 0 18px 40px rgba(20, 8, 10, 0);
 	transition: border-color 500ms ease, box-shadow 500ms ease, background-color 500ms ease;
 }
 .sr-timeline__step.is-lit .sr-timeline__card {
-	border-color: rgba(74, 31, 36, 0.15);
-	box-shadow: 0 16px 38px rgba(74, 31, 36, 0.07);
+	border-color: rgba(248, 244, 237, 0.28);
+	box-shadow: 0 18px 40px rgba(20, 8, 10, 0.28);
 }
 .sr-timeline__step:nth-child(odd) .sr-timeline__card {
 	grid-column: 1;
@@ -861,7 +1522,18 @@ ul.products li.product img {
 	color: rgba(248, 244, 237, 0.85);
 	border-top: 0;
 	overflow: hidden;
+	padding-inline: var(--sr-gutter);
 }
+/* Storefront's container is narrower than the rest of the site; align the
+ * footer to the same content width so its columns line up with everything
+ * above them. */
+.site-footer .col-full {
+	width: min(100%, var(--sr-content-max));
+	max-width: none;
+	margin-inline: auto;
+	padding-inline: 0;
+}
+.site-footer h3,
 .site-footer h4 {
 	font-size: 0.72rem;
 	letter-spacing: 0.2em;
@@ -963,12 +1635,184 @@ ul.products li.product img {
 }
 .sr-size-chart__note { font-size: 0.85rem; }
 
+/* ---------- Cart / checkout (WooCommerce block markup) ---------- */
+/* The block cart renders its own React markup; these align it to the house
+ * type and palette rather than restyling it wholesale. */
+.woocommerce-cart .wp-block-woocommerce-cart,
+.woocommerce-checkout .wp-block-woocommerce-checkout {
+	width: min(100%, var(--sr-content-max));
+	margin-inline: auto;
+}
+.wc-block-components-title,
+.wc-block-cart__totals-title,
+.wp-block-woocommerce-cart h1,
+.wp-block-woocommerce-cart h2 {
+	font-family: var(--sr-font-display) !important;
+	color: var(--sr-burgundy);
+	letter-spacing: -.01em;
+}
+.wc-block-cart-item__product-name,
+.wc-block-components-product-name {
+	font-family: var(--sr-font-display);
+	font-size: 1.05rem;
+	color: var(--sr-burgundy);
+	text-decoration: none;
+}
+.wc-block-components-totals-item__value,
+.wc-block-components-product-price__value {
+	font-family: var(--sr-font-body);
+	font-weight: 600;
+}
+.wc-block-cart__submit-button,
+.wc-block-components-checkout-place-order-button {
+	border-radius: 0;
+	background: var(--sr-burgundy);
+	font-family: var(--sr-font-body);
+	font-size: .78rem;
+	font-weight: 600;
+	letter-spacing: .14em;
+	text-transform: uppercase;
+}
+.wc-block-cart__submit-button:hover,
+.wc-block-components-checkout-place-order-button:hover { background: var(--sr-burgundy-soft); }
+/* Empty-cart state should invite browsing, not dead-end. */
+.wp-block-woocommerce-empty-cart-block { text-align: center; }
+
+/* Standalone placeholder (product gallery, block grids) - the loop-card rule
+ * sizes itself from .sr-card-media, which does not exist in those contexts. */
+.sr-card-ph--solo {
+	aspect-ratio: 3 / 4;
+	width: 100%;
+	border-radius: 12px;
+	overflow: hidden;
+}
+.sr-gallery-ph { display: block; width: 100%; }
+.sr-gallery-ph .sr-card-ph--solo { border-radius: 0; }
+
+/* WooCommerce notices: the stock blue/green chrome clashes badly with the
+ * burgundy and cream palette, and shows up on empty search and add-to-cart. */
+.woocommerce-info,
+.woocommerce-message,
+.woocommerce-error,
+.woocommerce-noreviews,
+.wc-block-components-notice-banner {
+	border-top-color: var(--sr-burgundy) !important;
+	background: var(--sr-cream);
+	color: var(--sr-ink);
+	border-radius: 10px;
+	font-size: .92rem;
+}
+.woocommerce-info::before,
+.woocommerce-message::before,
+.wc-block-components-notice-banner svg { color: var(--sr-burgundy) !important; fill: var(--sr-burgundy); }
+.woocommerce-info a,
+.woocommerce-message a { color: var(--sr-burgundy); }
+
+/* Empty search / empty cart: give the dead end a way out. */
+.sr-deadend {
+	max-width: 52ch;
+	margin: 2rem auto 0;
+	text-align: center;
+}
+.sr-deadend__actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: .6rem;
+	justify-content: center;
+	margin-top: 1.4rem;
+}
+.sr-deadend form.woocommerce-product-search {
+	display: flex;
+	gap: .5rem;
+	margin: 1.4rem auto 0;
+	max-width: 30rem;
+}
+.sr-deadend form.woocommerce-product-search input[type="search"] {
+	flex: 1 1 auto;
+	min-width: 0;
+	border: 1px solid rgba(74, 31, 36, .28);
+	border-radius: 8px;
+	padding: .7em .9em;
+}
+.wp-block-woocommerce-empty-cart-block .wc-block-grid__products img { border-radius: 10px; }
+
+/* Storefront leaves a purple focus outline that fires on mouse click and
+ * clashes with the palette; this theme's own :focus-visible rule is correct. */
+a:focus,
+.woocommerce-active a:focus {
+	outline-color: var(--sr-burgundy);
+	color: inherit;
+}
+a:focus:not(:focus-visible) { outline: none; }
+
+/* Honeypot: off-screen rather than display:none, which some bots detect. */
+.sr-hp {
+	position: absolute;
+	left: -9999px;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+}
+.sr-newsletter__consent {
+	margin: .9rem auto 0;
+	max-width: 42ch;
+	font-size: .8rem;
+	line-height: 1.5;
+}
+.sr-newsletter__consent label { display: flex; gap: .55rem; align-items: flex-start; text-align: left; }
+.sr-newsletter__consent input { margin-top: .2em; flex: none; }
+.sr-newsletter__status {
+	margin: 0 auto 1rem;
+	padding: .7em 1.2em;
+	max-width: 46ch;
+	border: 1px solid rgba(74, 31, 36, .18);
+	border-radius: 10px;
+	background: rgba(255, 255, 255, .6);
+	font-size: .9rem;
+}
+
+/* ---------- Trust strip (product page + cart) ---------- */
+.sr-trust {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+	gap: clamp(.9rem, 2vw, 1.6rem);
+	margin: 2rem 0 0;
+	padding: clamp(1.1rem, 2.4vw, 1.6rem);
+	list-style: none;
+	border: 1px solid rgba(74, 31, 36, .14);
+	border-radius: 14px;
+	background:
+		radial-gradient(115% 85% at 18% 8%, rgba(255, 255, 255, .9), transparent 58%),
+		linear-gradient(135deg, #fbf7f0 0%, var(--sr-cream) 55%, #f0e7da 100%);
+}
+.sr-trust__item { margin: 0; }
+.sr-trust__item strong {
+	display: block;
+	margin-bottom: .3rem;
+	font-family: var(--sr-font-body);
+	font-size: .68rem;
+	font-weight: 700;
+	letter-spacing: .16em;
+	text-transform: uppercase;
+	color: var(--sr-burgundy);
+}
+.sr-trust__item span {
+	display: block;
+	font-size: .86rem;
+	line-height: 1.6;
+	color: rgba(36, 20, 23, .82);
+}
+.sr-cart-trust {
+	width: min(100%, var(--sr-content-max));
+	margin: 2.5rem auto 0;
+	padding-inline: var(--sr-gutter);
+}
+
 /* ---------- Footer columns ---------- */
 .sr-footer-cols {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 	gap: 2rem;
-	max-width: 1200px;
 	margin: 0 auto;
 	padding: 2.5rem 0 1rem;
 }
@@ -984,6 +1828,11 @@ ul.products li.product img {
 	color: var(--sr-cream);
 }
 body { overflow-x: clip; }
+/* Storefront ships `.site { overflow-x: hidden }`. Per spec a hidden value on
+ * one axis forces the other to `auto`, which turns #page into a scroll
+ * container and silently disables `position: sticky` for every descendant.
+ * `clip` contains horizontal overflow just as well without that side effect. */
+.site { overflow-x: clip; }
 html.lenis, html.lenis body { height: auto; }
 .lenis.lenis-smooth { scroll-behavior: auto !important; }
 html {
@@ -1072,37 +1921,86 @@ html {
 .sr-line-inner { display: inline-block; }
 .sr-anim .sr-hero .sr-line-inner,
 .sr-anim [data-sr-lines] .sr-line-inner { transform: translateY(112%); }
+/* Failsafe: the masked lines above are held off-screen waiting for GSAP. If
+ * anything stops the hero timeline running, this slides them back unaided so
+ * the headline can never end up permanently invisible. GSAP sets an inline
+ * transform the moment it takes over, which outranks this rule. */
+@keyframes sr-line-failsafe { to { transform: translateY(0); } }
+.sr-anim .sr-hero .sr-line-inner {
+	animation: sr-line-failsafe 1ms linear 3s forwards;
+}
 
-/* Split hero (Apini/Richard George pattern): content panel + visual panel */
-.sr-hero--split {
+/* Full-bleed image hero: background fills the section edge-to-edge, content
+ * centred over a scrim. Fashion-store pattern - the piece is the backdrop,
+ * type and the two CTAs sit on top of it, not beside it. */
+.sr-hero--full {
 	display: grid;
-	grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
-	align-items: center;
-	gap: clamp(2rem, 4vw, 4rem);
-	text-align: left;
-	padding: 0;
-	min-height: min(86vh, 900px);
+	place-items: center;
+	text-align: center;
+	padding: clamp(6rem, 15vw, 10rem) var(--sr-gutter) clamp(4rem, 9vw, 6rem);
+	min-height: min(94vh, 980px);
 }
-.sr-hero--split .sr-hero__content {
-	padding: clamp(3rem, 7vw, 6rem) 0 clamp(3rem, 7vw, 6rem) var(--sr-gutter);
-	max-width: 640px;
-	justify-self: end;
+.sr-hero__bg {
+	position: absolute;
+	/* Overhang top and bottom by more than the parallax travel (data-sr-parallax="6"
+	 * shifts this ±6%), otherwise the scroll exposes a bare strip at each end. */
+	left: 0;
+	right: 0;
+	top: -11%;
+	height: 122%;
+	z-index: 0;
+	background:
+		radial-gradient(120% 90% at 30% 20%, rgba(248, 244, 237, 0.10), transparent 55%),
+		radial-gradient(130% 110% at 75% 90%, rgba(20, 8, 10, 0.55), transparent 65%),
+		linear-gradient(160deg, #5d2830 0%, var(--sr-burgundy) 55%, #35161a 100%);
 }
-.sr-hero--split h1 {
-	margin-left: 0;
-	max-width: none;
-	font-size: clamp(2.4rem, 5.4vw, 4.6rem);
+.sr-hero__img {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	object-position: center 30%;
 }
-.sr-hero--split p {
-	margin-left: 0;
-	max-width: 44ch;
+/* With real photography behind it the type needs a heavier scrim than the
+ * flat gradient placeholder required. */
+.sr-hero--photo .sr-hero__scrim {
+	background:
+		linear-gradient(180deg, rgba(28, 14, 16, 0.52) 0%, rgba(28, 14, 16, 0.34) 45%, rgba(28, 14, 16, 0.68) 100%);
 }
-.sr-hero--split .sr-hero-actions { justify-content: flex-start; }
-.sr-hero__visual {
-	position: relative;
-	overflow: hidden;
-	align-self: stretch;
-	min-height: 420px;
+.sr-hero__bg .sr-ornament {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	width: min(140%, 980px);
+	transform: translate(-50%, -50%);
+	color: var(--sr-cream);
+	opacity: 0.1;
+}
+.sr-hero__scrim {
+	position: absolute;
+	inset: 0;
+	z-index: 0;
+	background: linear-gradient(180deg, rgba(36, 20, 23, 0.28) 0%, rgba(36, 20, 23, 0.18) 45%, rgba(36, 20, 23, 0.55) 100%);
+}
+.sr-hero--full .sr-hero__content { max-width: 680px; }
+.sr-hero--full .sr-eyebrow { color: var(--sr-cream); opacity: 0.88; }
+.sr-hero--full h1 { color: var(--sr-white); margin-left: 0; max-width: none; }
+.sr-hero--full p { color: rgba(248, 244, 237, 0.9); margin-left: 0; max-width: 46ch; margin-inline: auto; }
+.sr-hero--full .sr-hero-actions { justify-content: center; }
+.sr-hero--full .button.sr-ghost { color: var(--sr-cream); border-color: rgba(248, 244, 237, 0.7); }
+.sr-hero--full .button.sr-ghost::before { background: var(--sr-cream); }
+.sr-hero--full .button.sr-ghost:hover,
+.sr-hero--full .button.sr-ghost:focus-visible { color: var(--sr-burgundy); }
+.sr-hero__caption {
+	display: block;
+	margin-top: 2.5rem;
+	font-size: 0.62rem;
+	font-weight: 600;
+	letter-spacing: 0.2em;
+	text-transform: uppercase;
+	color: var(--sr-cream);
+	opacity: 0.55;
 }
 
 /* Placeholder visuals — swapped for photography when it arrives */
@@ -1263,15 +2161,179 @@ ul.products li.product:hover .woocommerce-loop-product__title { color: var(--sr-
 ul.products li.product .button {
 	transition: background-color 240ms ease, color 240ms ease, opacity 300ms ease, transform 300ms ease;
 }
-@media (pointer: fine) {
-	ul.products li.product .button {
-		opacity: 0;
-		transform: translateY(6px);
+
+/* ---------- Product card detail ---------- */
+/* The card is a single surface: media on top, then a body carrying badge,
+ * price, copy, specs, sizes and the two calls to action. */
+ul.products li.product {
+	display: flex;
+	flex-direction: column;
+	background: var(--sr-white);
+	border: 1px solid rgba(74, 31, 36, .1);
+	border-radius: 16px;
+	overflow: hidden;
+	transition: border-color 320ms ease, box-shadow 420ms ease, transform 420ms cubic-bezier(.22, 1, .36, 1);
+}
+ul.products li.product:hover {
+	border-color: rgba(74, 31, 36, .2);
+	box-shadow: 0 22px 48px -24px rgba(74, 31, 36, .38);
+	transform: translateY(-3px);
+}
+/* One fixed ratio for every card, whatever the source image. Mixed portrait
+ * photos and square placeholders were what made the grid look ragged. */
+.sr-card-media {
+	margin-bottom: 0;
+	border-radius: 0;
+	aspect-ratio: 3 / 4;
+}
+.sr-card-media__link { display: block; height: 100%; }
+.sr-card-media img {
+	height: 100%;
+	object-fit: cover;
+}
+/* House placeholder for products with no photograph yet. */
+.sr-card-ph {
+	display: grid;
+	place-items: center;
+	height: 100%;
+	background:
+		radial-gradient(120% 90% at 25% 15%, rgba(74, 31, 36, .08), transparent 55%),
+		linear-gradient(160deg, #f4ede1 0%, var(--sr-cream) 45%, #ecdfcd 100%);
+}
+.sr-card-ph .sr-ornament {
+	width: 58%;
+	color: var(--sr-burgundy);
+	opacity: .16;
+}
+.sr-card-badge {
+	position: absolute;
+	z-index: 3;
+	top: .9rem;
+	left: .9rem;
+	padding: .5em 1.05em;
+	border-radius: 999px;
+	background: rgba(255, 255, 255, .92);
+	color: var(--sr-burgundy);
+	font-family: var(--sr-font-body);
+	font-size: .62rem;
+	font-weight: 700;
+	letter-spacing: .14em;
+	text-transform: uppercase;
+	white-space: nowrap;
+	backdrop-filter: blur(6px);
+	box-shadow: 0 2px 10px rgba(74, 31, 36, .14);
+}
+.sr-card-body {
+	display: flex;
+	flex-direction: column;
+	flex: 1 1 auto;
+	gap: .55rem;
+	padding: 1.25rem 1.3rem 1.4rem;
+	text-align: left;
+}
+ul.products li.product .sr-card-body .woocommerce-loop-product__title {
+	margin: 0;
+	padding: 0;
+	font-size: 1.24rem;
+}
+.sr-card-body .woocommerce-loop-product__title a { text-decoration: none; }
+ul.products li.product .sr-card-body .price,
+.sr-card-body .sr-price-on-inquiry {
+	margin: 0;
+	font-family: var(--sr-font-body);
+	font-size: .92rem;
+	font-weight: 600;
+	letter-spacing: .01em;
+}
+.sr-card-excerpt {
+	margin: .15rem 0 0;
+	font-size: .88rem;
+	line-height: 1.6;
+	color: rgba(36, 20, 23, .78);
+}
+/* Specs: hairline-separated label/value rows, same rhythm as the pillars. */
+.sr-card-specs {
+	margin: .5rem 0 0;
+	padding-top: .8rem;
+	border-top: 1px solid rgba(74, 31, 36, .12);
+	font-size: .82rem;
+	line-height: 1.55;
+}
+.sr-card-spec { display: flex; gap: .4em; }
+.sr-card-spec dt { font-weight: 700; color: var(--sr-burgundy); flex: none; }
+.sr-card-spec dt::after { content: ":"; }
+/* Long attribute lists are clamped so one verbose product cannot make its card
+ * taller than the rest of the row. */
+.sr-card-spec dd {
+	margin: 0;
+	color: rgba(36, 20, 23, .8);
+	display: -webkit-box;
+	-webkit-line-clamp: 2;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+}
+/* Size pills */
+.sr-card-sizes {
+	display: flex;
+	flex-wrap: wrap;
+	gap: .4rem;
+	margin: .55rem 0 0;
+	padding: 0;
+	list-style: none;
+}
+.sr-card-sizes li { margin: 0; }
+.sr-card-sizes a {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 2.1rem;
+	padding: .34em .52em;
+	border: 1px solid rgba(74, 31, 36, .28);
+	border-radius: 7px;
+	font-family: var(--sr-font-body);
+	font-size: .66rem;
+	font-weight: 600;
+	letter-spacing: .06em;
+	text-transform: uppercase;
+	text-decoration: none;
+	color: var(--sr-burgundy);
+	transition: background-color 200ms ease, color 200ms ease, border-color 200ms ease;
+}
+.sr-card-sizes a:hover,
+.sr-card-sizes a:focus-visible {
+	background: var(--sr-burgundy);
+	border-color: var(--sr-burgundy);
+	color: var(--sr-cream);
+}
+/* Touch devices get a 44px target; pointer devices keep the tighter pill so
+ * the row still fits the card. */
+@media (pointer: coarse) {
+	.sr-card-sizes a {
+		min-width: 44px;
+		min-height: 44px;
+		font-size: .72rem;
 	}
-	ul.products li.product:hover .button,
-	ul.products li.product .button:focus-visible {
+}
+/* Actions pinned to the foot so cards in a row line up. */
+.sr-card-actions {
+	display: flex;
+	flex-direction: column;
+	gap: .5rem;
+	margin-top: auto;
+	padding-top: 1rem;
+}
+ul.products li.product .sr-card-actions .button {
+	width: 100%;
+	margin: 0;
+	text-align: center;
+	font-size: .72rem;
+	padding: .95em 1.2em;
+}
+/* The stock loop hides its button until hover; these are always available. */
+@media (pointer: fine) {
+	ul.products li.product .sr-card-actions .button {
 		opacity: 1;
-		transform: translateY(0);
+		transform: none;
 	}
 }
 
@@ -1296,18 +2358,10 @@ ul.products li.product .button {
 
 /* ---------- Responsive: story sections ---------- */
 @media (max-width: 900px) {
-	.sr-shop-gateway__layout { grid-template-columns: 1fr; gap: 2.4rem; }
-	.sr-shop-gateway__intro { position: static; max-width: 580px; padding-top: 0; }
-	.sr-shop-gateway__seal { margin-bottom: 1.25rem; }
-	.sr-hero--split {
-		grid-template-columns: 1fr;
-		min-height: 0;
-	}
-	.sr-hero--split .sr-hero__content {
-		padding: clamp(3rem, 9vw, 4.5rem) var(--sr-gutter) 2.5rem;
-		justify-self: start;
-	}
-	.sr-hero__visual { min-height: 46vh; }
+	.sr-story__intro { max-width: 620px; }
+	.sr-story__frame { margin-inline: 0; }
+	.sr-story__title { margin-top: -1.6em; }
+	.sr-hero--full { min-height: min(78vh, 720px); padding: clamp(4.5rem, 16vw, 6rem) var(--sr-gutter) 3rem; }
 	.sr-split { grid-template-columns: 1fr; }
 	.sr-split--flip .sr-split__visual { order: 0; }
 	.sr-split__visual { min-height: 46vh; }
@@ -1320,9 +2374,9 @@ ul.products li.product .button {
 }
 
 @media (max-width: 700px) {
-	.sr-shop-gateway__grid { grid-template-columns: 1fr; }
+	.sr-shop-gateway__grid,
+	.sr-shop-gateway__grid--3 { grid-template-columns: 1fr; }
 	.sr-route { min-height: 275px; }
-	.sr-route--collection { min-height: 190px; }
 	.sr-route__art { width: min(48%, 165px); }
 	.sr-rowhead { align-items: flex-start; }
 	.sr-atelier__actions { width: 100%; justify-content: space-between; }

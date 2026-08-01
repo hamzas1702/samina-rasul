@@ -1,0 +1,106 @@
+﻿SKU,Product Name,Category,Collection,Base Price (PKR),Item Options (one per line: Label | price),Sizes (comma-separated),Fabric Upgrades (one per line: Label | added fee),Optional Extras (one per line: Label | added fee),Delivery Time,Description,Image Filenames
+DK-001,Dhanak DK-001,Formals,Dhanak,87500,,"XS, S, M, ML, L, XL, Customized",,,7–8 weeks,"Hand embellished organza shirt paired with straight pants and organza mukesh dupatta with chatta patti borders.
+Shirt: Pure Mukesh-Embellished Organza (Hand Embellished)
+Trousers: Tussle Silk (Straight Cut)
+Dupatta: Pure Mukesh-Embellished Organza with Chatta Patti Borders",
+DK-002,Dhanak DK-002,Formals,Dhanak,39500,,"XS, S, M, ML, L, XL, Customized",Raw Silk 80gm | 16500,,7–8 weeks,"Hand embellished tassel silk shirt and trouser paired with zari net dupatta.
+Shirt: Tussle Silk (Hand Embellished)
+Trousers: Tussle Silk
+Dupatta: Zari Net",
+DK-003,Dhanak DK-003,Formals,Dhanak,66500,,"XS, S, M, ML, L, XL, Customized",Raw Silk 80gm | 16500,,7–8 weeks,"Hand embellished Korean raw silk long shirt with a front slit and flared pants with mukesh embellished bamber chiffon dupatta finished with embellished lace.
+Shirt: Korean Raw Silk
+Pants: Korean Raw Silk (Flared)
+Dupatta: Mukesh-Embellished Bamber Chiffon, finished with embellished lace",
+DK-004,Dhanak DK-004,Formals,Dhanak,84500,,"XS, S, M, ML, L, XL, Customized",Raw Silk 80gm | 16500,,7–8 weeks,"Heavily embellished sheesha silk shirt paired with flared pants and zari net dupatta.
+Shirt: Pure Sheesha Silk
+Pants: Pure Sheesha Silk (Flared)
+Dupatta: Zari Net",
+DK-005,Dhanak DK-005,Formals,Dhanak,56500,,"XS, S, M, ML, L, XL, Customized",,,7–8 weeks,"Hand embellished sheesha silk shirt and farshi shalwar paired with a mukesh net dupatta.
+Shirt: Pure Sheesha Silk (Hand Embellished)
+Farshi Shalwar: Pure Sheesha Silk
+Dupatta: Mukesh-Embellished Net",
+DK-006,Dhanak DK-006,Formals,Dhanak,59500,,"XS, S, M, ML, L, XL, Customized",,,7–8 weeks,"Hand embellished fine net A-line shirt with block printed cotton silk lining paired with a tapered Korean raw silk shalwar and plain net dupatta.
+Shirt: Fine Net (Hand Embellished) with Block-Printed Cotton Silk Lining
+Shalwar: Korean Raw Silk (Tapered)
+Dupatta: Plain Fine Net",
+DK-007,Dhanak DK-007,Formals,Dhanak,42500,,"XS, S, M, ML, L, XL, Customized",,,7–8 weeks,"Heavily embellished shirt and shalwar with gota, zardozi and sequin work, and a mukesh embellished bamber chiffon dupatta.
+Shirt: Korean Raw Silk
+Shalwar: Korean Raw Silk
+Dupatta: Mukesh-Embellished Bamber Chiffon",
+DK-008,Dhanak DK-008,Bridals,Dhanak,120000,,"XS, S, M, ML, L, XL, Customized",,,7–8 weeks,"Heavily worked pishwas and dupatta with naqshi, pearls and zardozi paired with a plain brocade lehnga.
+Pishwas: Korean Raw Silk
+Lehnga: Brocade
+Dupatta: Pure Organza (heavy border on one side, lighter on the other three — border changes charged additionally)
+(Price never shown on site — Bridals are inquiry-only.)",
+DK-009,Dhanak DK-009,Formals,Dhanak,98500,,"XS, S, M, ML, L, XL, Customized",,,7–8 weeks,"Heavily worked pishwas with resham, pearls and zardozi, Korean raw silk lehnga and organza dupatta with chatta patti detailing.
+Pishwas: Self-Embossed Organza
+Lehnga: Korean Raw Silk
+Dupatta: Pure Organza with Chatta Patti Detailing
+(Listed as Formals in source — confirm this shouldn't be Bridals given the silhouette.)",
+DK-0010,Dhanak DK-0010,Bridals,Dhanak,130000,,"XS, S, M, ML, L, XL, Customized",,,7–8 weeks,"Pure organza lehnga hand worked with zardozi, pearls and sequins paired with a chiffon jamawar choli and dupatta in pistachio and teal green.
+Lehnga: Pure Organza
+Choli: Chiffon Jamawar
+Dupatta: Chiffon Jamawar
+(Price never shown on site — Bridals are inquiry-only.)",
+DK-0011,Dhanak DK-0011,Bridals,Dhanak,94500,,"XS, S, M, ML, L, XL, Customized",,,7–8 weeks,"Heavily worked choli with gota and zardozi paired with a double layered lehnga embellished with gota work and a mukesh dupatta.
+Choli: Sheesha Silk
+Lehnga: Double Layered — Jamawar (bottom), Mukesh Net (top)
+Dupatta: Mukesh Net
+(Price never shown on site — Bridals are inquiry-only.)",
+DK-0012,Dhanak DK-0012,Bridals,Dhanak,220000,,"XS, S, M, ML, L, XL, Customized",,,7–8 weeks,"Choli, lehnga and dupatta adorned with resham and zardozi handwork, meticulously finished — perfect for a minimalist bride.
+Choli: Sheesha Silk
+Lehnga: Sheesha Silk
+Dupatta: Mukesh Net
+(Price never shown on site — Bridals are inquiry-only.)",
+DK-0013,Dhanak DK-0013,Bridals,Dhanak,,,"XS, S, M, ML, L, XL, Customized",,,7–8 weeks,"Long shirt, lehnga and dupatta adorned with resham and zardozi handwork, meticulously finished — perfect for a heavy bride.
+Shirt: Pure Organza
+Lehnga: Brocade
+Dupatta: Pure Organza
+(Price not provided in source — please confirm. Bridals are inquiry-only.)",
+DK-0014,Dhanak DK-0014,Bridals,Dhanak,,,"XS, S, M, ML, L, XL, Customized",,,7–8 weeks,"Short shirt, ghrara and shawl adorned with resham and zardozi handwork, meticulously finished — perfect for a nikkah bride.
+Shirt: Pure Tissue Organza
+Ghrara: Brocade / Jamawar
+Shawl: Pure Tissue Organza
+(Price not provided in source — please confirm. Bridals are inquiry-only.)",
+UJ-001,Ujala UJ-001,Formals,Ujala,95500,,"XS, S, M, ML, L, XL, Customized",Raw Silk 80gm | 16500,,8–9 weeks,"Hand embellished long shirt with front slit paired with flared pants and mukesh dupatta. (3 piece)
+Shirt: Korean Raw Silk (Hand Embellished, Long Shirt with Front Slit)
+Pants: Korean Raw Silk (Flared)
+Dupatta: Mukesh-Embellished Organza",
+UJ-002,Ujala UJ-002,Formals,Ujala,,"Raw Silk 80gm (as shown) | 96500
+Sheesha Silk | 80000","XS, S, M, ML, L, XL, Customized",,,8–9 weeks,"Hand embellished shirt paired with a traditional shalwar and embellished mukesh dupatta.
+Shirt: Raw Silk 80gm (with lining) — also offered in Sheesha Silk
+Shalwar: Raw Silk 80gm (Plain Dyed, Traditional Style)
+Dupatta: Pure Organza with Mukaish Embellishment
+(Show as a price range on the main page: PKR 80,000–96,500.)",
+UJ-003,Ujala UJ-003,Formals,Ujala,,"Raw Silk with Heavy Dupatta | 110500
+Raw Silk with Minimal Dupatta (No Borders) | 69500
+Sheesha Silk with Heavy Dupatta | 94000
+Sheesha Silk with Minimal Dupatta (No Borders) | 54000","XS, S, M, ML, L, XL, Customized",,,8–9 weeks,"Hand embellished shirt paired with straight pants and embellished mukesh dupatta.
+Shirt: Raw Silk 80gm (with lining) — also offered in Sheesha Silk
+Pants: Raw Silk 80gm (Straight Pants)
+Dupatta: Pure Chiffon with Mukaish Embellishment",
+UJ-004,Ujala UJ-004,Formals,Ujala,,"Raw Silk 80gm | 96500
+Sheesha Silk | 80000","XS, S, M, ML, L, XL, Customized",,,8–9 weeks,"Hand embellished Raw silk shirt paired with a traditional shalwar and embellished mukesh dupatta.
+Shirt: Raw Silk 80gm (with lining) — also offered in Sheesha Silk
+Shalwar: Raw Silk 80gm (Plain Dyed, Traditional Style)
+Dupatta: Pure Organza with Mukaish Embellishment",
+UJ-005,Ujala UJ-005,Formals,Ujala,64500,,"XS, S, M, ML, L, XL, Customized",,,8–9 weeks,"Hand embellished shirt adorned with intricate zardozi and resham handwork paired with plain straight pants and a mukaish-detailed chiffon dupatta.
+Shirt: Tissue Lame (with lining)
+Pants: Korean Raw Silk (Plain Dyed Straight Pants)
+Dupatta: Chiffon with Mukaish Work",
+UJ-006,Ujala UJ-006,Formals,Ujala,89500,,"XS, S, M, ML, L, XL, Customized",,,8–9 weeks,"Hand-embellished shirt and dupatta embellished with zardozi, sequins and resham handwork paired with classic straight pants and tissue dupatta. Shirt and pants in silver gray, dupatta in lilac pink.
+Shirt: Pure Tissue
+Pants: Korean Raw Silk (Straight Pants)
+Dupatta: Pure Tissue",
+UJ-007,Ujala UJ-007,Formals,Ujala,63500,,"XS, S, M, ML, L, XL, Customized",,,8–9 weeks,"Hand embellished shirt adorned with pearls and sequins paired with bootcut pants and dupatta.
+Shirt: Soft Net
+Pants: Korean Raw Silk (Bootcut Pants)
+Dupatta: Soft Net",
+UJ-008,Ujala UJ-008,Formals,Ujala,64500,,"XS, S, M, ML, L, XL, Customized",Trousers Raw Silk 80gm | 8000,,8–9 weeks,"Heavily embellished short peplum dress adorned with delicate pearls and crystals, paired with plain dyed long bootcut pants and a matching dyed net dupatta.
+Peplum: Premium Net (heavily embellished with pearls & crystals)
+Pants: Korean Raw Silk
+Dupatta: Net (plain dyed)",
+UJ-009,Ujala UJ-009,Formals,Ujala,56500,,"XS, S, M, ML, L, XL, Customized",,"Matching Shawl (Raw Silk 80gm, border all sides + sleeves) | fee not specified — confirm",8–9 weeks,"Hand-embellished shirt minimally embellished with zardozi and resham handwork, paired with plain dyed straight pants and a mukaish dupatta.
+Shirt: Raw Silk 80gm
+Pants: Raw Silk 80gm
+Dupatta: Pure Chiffon with Mukesh",

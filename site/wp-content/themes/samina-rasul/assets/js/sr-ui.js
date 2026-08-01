@@ -7,12 +7,37 @@
 (function () {
 	'use strict';
 
-	if (typeof gsap === 'undefined') { return; }
+	/* Undo the pre-paint states the head script applied. Called when the
+	 * animation layer cannot run, so the page is readable either way. */
+	function releasePrePaintStates() {
+		var d = document.documentElement;
+		d.classList.remove('sr-anim', 'sr-preload', 'sr-curtain-in');
+		var pre = document.querySelector('.sr-preloader');
+		if (pre && pre.parentNode) { pre.parentNode.removeChild(pre); }
+	}
+
+	if (typeof gsap === 'undefined' || typeof ScrollTrigger === 'undefined') {
+		releasePrePaintStates();
+		return;
+	}
 
 	if (document.readyState === 'loading') {
-		document.addEventListener('DOMContentLoaded', init);
+		document.addEventListener('DOMContentLoaded', boot);
 	} else {
-		init();
+		boot();
+	}
+
+	/* Anything thrown inside init() would otherwise leave the reveal elements
+	 * hidden and, on the front page, the preloader covering a locked body. */
+	function boot() {
+		try {
+			init();
+			clearTimeout(window.__srFailSafe);
+		} catch (err) {
+			clearTimeout(window.__srFailSafe);
+			releasePrePaintStates();
+			if (window.console && console.error) { console.error('sr-ui init failed:', err); }
+		}
 	}
 
 	function init() {
@@ -99,12 +124,24 @@
 			if (url.origin !== window.location.origin) { return; }
 			if (url.pathname === window.location.pathname && url.hash) { return; }
 			if (a.classList.contains('add_to_cart_button') || a.closest('.wc-block-components-button, .sr-whatsapp-inquire, .sr-whatsapp-float')) { return; }
+			// Never delay a commerce step: half a second of decoration on the
+			// way to the cart or checkout is half a second of risk.
+			if (/\/(cart|checkout|my-account)\//.test(url.pathname)) { return; }
 			e.preventDefault();
 			try { sessionStorage.setItem('srCurtain', '1'); } catch (err) {}
+			// Hard fallback: if the ticker is throttled or the tween is
+			// overwritten, the click must still navigate.
+			var navigated = false;
+			var go = function () {
+				if (navigated) { return; }
+				navigated = true;
+				window.location.href = url.href;
+			};
+			setTimeout(go, 700);
 			gsap.timeline()
 				.set(curtain, { transformOrigin: '50% 100%' })
 				.to(curtain, { scaleY: 1, duration: 0.5, ease: 'expo.inOut' })
-				.add(function () { window.location.href = url.href; });
+				.add(go);
 		});
 		// bfcache restore: make sure the curtain is gone.
 		window.addEventListener('pageshow', function (e) {
@@ -192,6 +229,9 @@
 		});
 		timeline.querySelectorAll('.sr-timeline__step').forEach(function (step, i) {
 			var card = step.querySelector('.sr-timeline__card');
+			// A step without a card would throw here and abort the rest of
+			// init() - parallax, marquee, cursor and all.
+			if (!card) { return; }
 			var mobile = window.matchMedia('(max-width: 760px)').matches;
 			var fromX = mobile ? 32 : ( i % 2 === 0 ? -48 : 48 );
 			var details = card.querySelectorAll('.sr-timeline__heading, .sr-timeline__motif, h3, p');

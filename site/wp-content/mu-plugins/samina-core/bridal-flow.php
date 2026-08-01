@@ -32,6 +32,11 @@ function sr_whatsapp_number() {
 
 function sr_whatsapp_url( $product ) {
 	$number = sr_whatsapp_number();
+	// With no number configured this would build https://wa.me/?text=... and
+	// every bridal CTA would land nowhere. Callers treat '' as "no link".
+	if ( '' === $number ) {
+		return '';
+	}
 	$text   = sprintf(
 		/* translators: 1: product name, 2: product URL */
 		__( 'Hello, I am interested in %1$s %2$s', 'samina' ),
@@ -42,10 +47,23 @@ function sr_whatsapp_url( $product ) {
 }
 
 function sr_inquire_button_html( $product, $classes = 'sr-whatsapp-inquire button alt' ) {
+	$url = sr_whatsapp_url( $product );
+
+	// No number configured: send the enquiry to the contact page rather than
+	// rendering a link that goes nowhere.
+	if ( '' === $url ) {
+		return sprintf(
+			'<a class="%s" href="%s">%s</a>',
+			esc_attr( $classes ),
+			esc_url( home_url( '/contact/' ) ),
+			esc_html__( 'Enquire about this piece', 'samina' )
+		);
+	}
+
 	return sprintf(
 		'<a class="%s" href="%s" target="_blank" rel="noopener">%s</a>',
 		esc_attr( $classes ),
-		esc_url( sr_whatsapp_url( $product ) ),
+		esc_url( $url ),
 		esc_html__( 'Inquire on WhatsApp', 'samina' )
 	);
 }
