@@ -19,6 +19,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Lint PHP
+        run: |
+          # The cheapest possible gate between a push and a live store: nothing
+          # with a parse error can reach the atomic swap. Only the two trees the
+          # deploy actually ships are linted.
+          find ./site/wp-content/themes/samina-rasul \
+               ./site/wp-content/mu-plugins/samina-core \
+               ./site/wp-content/mu-plugins/samina-core.php \
+               -name '*.php' -print0 | xargs -0 -n1 -P4 php -l
+
       - name: Inject Build SHA into Theme
         env:
           GITHUB_SHA: ${{ github.sha }}
@@ -70,6 +80,29 @@ jobs:
           ./site/wp-content/mu-plugins/samina-core/ \
           $SSH_USER@$SSH_HOST:$REMOTE_PATH/wp-content/mu-plugins/samina-core-_deploy/
 
+      - name: Sync MU-Plugin Loader
+        env:
+          REMOTE_PATH: ${{ secrets.REMOTE_PATH }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+        run: |
+          # samina-core.php is the file WordPress actually auto-loads; everything
+          # under samina-core/ is dead code without it. It used to be excluded
+          # from the deploy entirely, so live depended on a copy someone had
+          # placed by hand once, with nothing verifying it was still there - and
+          # if it vanished, bridal prices would go public and bridal products
+          # purchasable, silently, with a passing health check.
+          #
+          # Copied in place rather than through the atomic swap: it is a single
+          # idempotent file that only globs whatever is in samina-core/ at the
+          # time, so it is correct before or after the directory swap.
+          rsync -avz \
+          --chmod=Fu=rw,Fgo=r \
+          -e "ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new -p $SSH_PORT" \
+          ./site/wp-content/mu-plugins/samina-core.php \
+          $SSH_USER@$SSH_HOST:$REMOTE_PATH/wp-content/mu-plugins/samina-core.php
+
       - name: Execute Zero-Gap Atomic Swap & Safe Rotation
         env:
           REMOTE_PATH: ${{ secrets.REMOTE_PATH }}
@@ -118,9 +151,16 @@ jobs:
           $SSH_CMD "cd $REMOTE_PATH || exit 1; wp cache flush --quiet || true; wp litespeed-purge all --quiet || true"
 
           echo "Sending forward OPcache reset request..."
-          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$LIVE_URL/?sr_opcache_reset=1&token=$SR_OPCACHE_SECRET")
+          # POST + secret in a header: a token in the query string is recorded by
+          # the web server's access log, by any proxy/CDN in front of it, and in
+          # Referer headers. --fail-with-body keeps the response out of the log.
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST \
+            -H "X-SR-Deploy-Token: $SR_OPCACHE_SECRET" \
+            "$LIVE_URL/?sr_opcache_reset=1")
           if [ "$HTTP_STATUS" != "200" ]; then
             echo "FAIL: OPcache reset endpoint returned HTTP $HTTP_STATUS."
+            echo "Check that SR_OPCACHE_SECRET is defined in live wp-config.php and matches the GitHub secret."
             exit 1
           fi
           echo "OPcache reset successful."
@@ -130,8 +170,17 @@ jobs:
         env:
           LIVE_URL: ${{ secrets.LIVE_URL }}
           GITHUB_SHA: ${{ github.sha }}
+          # Optional. Repository variable, e.g. "/product/some-live-product/".
+          HEALTH_CHECK_PRODUCT_PATH: ${{ vars.HEALTH_CHECK_PRODUCT_PATH }}
         run: |
-          PAGES=("$LIVE_URL/" "$LIVE_URL/product/dhanak-formal-dk-001-sample/" "$LIVE_URL/cart/")
+          # Home and cart always exist. A product page exercises far more theme
+          # code, but pinning one product slug means the day the client deletes
+          # that sample every deploy fails and auto-rollback fires on a good
+          # release - so it is opt-in through a repository variable.
+          PAGES=("$LIVE_URL/" "$LIVE_URL/cart/")
+          if [ -n "$HEALTH_CHECK_PRODUCT_PATH" ]; then
+            PAGES+=("$LIVE_URL$HEALTH_CHECK_PRODUCT_PATH")
+          fi
           BUST="?sr_qa=$GITHUB_SHA"
           UA="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
@@ -163,6 +212,7 @@ jobs:
           LIVE_URL: ${{ secrets.LIVE_URL }}
           SR_OPCACHE_SECRET: ${{ secrets.SR_OPCACHE_SECRET }}
           GITHUB_SHA: ${{ github.sha }}
+          HEALTH_CHECK_PRODUCT_PATH: ${{ vars.HEALTH_CHECK_PRODUCT_PATH }}
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_PORT: ${{ secrets.SSH_PORT }}
           SSH_USER: ${{ secrets.SSH_USER }}
@@ -199,14 +249,24 @@ jobs:
             ROLLBACK_STATUS="FAILED"
           else
             echo "Sending rollback OPcache reset request..."
-            HTTP_STATUS_RESET=$(curl -s -o /dev/null -w "%{http_code}" "$LIVE_URL/?sr_opcache_reset=1&token=$SR_OPCACHE_SECRET")
-            
+            HTTP_STATUS_RESET=$(curl -s -o /dev/null -w "%{http_code}" \
+              -X POST \
+              -H "X-SR-Deploy-Token: $SR_OPCACHE_SECRET" \
+              "$LIVE_URL/?sr_opcache_reset=1")
+
             if [ "$HTTP_STATUS_RESET" != "200" ]; then
               echo "FAIL: Rollback OPcache reset failed (HTTP $HTTP_STATUS_RESET). Stale cache may be served."
               ROLLBACK_STATUS="FAILED"
             else
               sleep 3
-              PAGES=("$LIVE_URL/" "$LIVE_URL/product/dhanak-formal-dk-001-sample/" "$LIVE_URL/cart/")
+              # Home and cart always exist. A product page exercises far more theme
+          # code, but pinning one product slug means the day the client deletes
+          # that sample every deploy fails and auto-rollback fires on a good
+          # release - so it is opt-in through a repository variable.
+          PAGES=("$LIVE_URL/" "$LIVE_URL/cart/")
+          if [ -n "$HEALTH_CHECK_PRODUCT_PATH" ]; then
+            PAGES+=("$LIVE_URL$HEALTH_CHECK_PRODUCT_PATH")
+          fi
               BUST="?sr_qa=rollback_verify_$GITHUB_SHA"
               UA="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
               

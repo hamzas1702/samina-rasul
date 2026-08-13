@@ -10,7 +10,8 @@ get_header(); ?>
 	<h1><?php esc_html_e( 'This thread leads nowhere', 'samina-rasul' ); ?></h1>
 	<p style="max-width:46ch;margin:1.5rem auto 2.25rem;"><?php esc_html_e( 'The page you were looking for has moved or never existed. The collections, at least, are exactly where they should be.', 'samina-rasul' ); ?></p>
 	<p>
-		<a class="button" href="<?php echo esc_url( home_url( '/shop/' ) ); ?>"><?php esc_html_e( 'Browse the shop', 'samina-rasul' ); ?></a>
+		<?php // sr_shop_url() resolves the configured WooCommerce shop page; '/shop/' was a guess that 404s the moment that page is renamed - on the 404 page. ?>
+		<a class="button" href="<?php echo esc_url( sr_shop_url() ); ?>"><?php esc_html_e( 'Browse the shop', 'samina-rasul' ); ?></a>
 		<a class="button sr-ghost" href="<?php echo esc_url( home_url( '/' ) ); ?>"><?php esc_html_e( 'Go home', 'samina-rasul' ); ?></a>
 	</p>
 </main>

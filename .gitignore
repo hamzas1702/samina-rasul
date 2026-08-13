@@ -1,19 +1,69 @@
-# WordPress Backup & Uploads
+# ---------------------------------------------------------------------------
+# What this repository is
+#
+# The deployable product is two directories: the child theme and the samina-core
+# mu-plugin (plus its loader). Everything else under site/ is either a
+# third-party dependency, generated, or private data - the deploy pipeline
+# rsyncs none of it, so tracking it bought nothing and cost a 446 MB history.
+# ---------------------------------------------------------------------------
+
+# --- Secrets and data. Never commit. ---
+# wp-config.php holds the auth salts and the database credential. Anyone with
+# read access to this repo could forge login cookies from the salts alone.
+site/wp-config.php
+# The SQLite database: the users table, password hashes, and every customer and
+# order row once the store is live.
+site/wp-content/database/
 site/wp-content/ai1wm-backups/
+*.sql
+*.sqlite
+.env
+.env.*
+
+# --- WordPress core (a dependency, installed not authored) ---
+site/wp-admin/
+site/wp-includes/
+site/wp-*.php
+site/index.php
+site/xmlrpc.php
+site/readme.html
+site/license.txt
+site/.htaccess
+# Drop-in installed by the sqlite-database-integration plugin.
+site/wp-content/db.php
+site/wp-content/index.php
+# router.php stays tracked: it is this project's own dev-server front controller,
+# not part of WordPress.
+!site/router.php
+
+# --- Third-party plugins and themes ---
+site/wp-content/plugins/
+site/wp-content/themes/*
+!site/wp-content/themes/samina-rasul/
+site/wp-content/mu-plugins/*
+!site/wp-content/mu-plugins/samina-core/
+!site/wp-content/mu-plugins/samina-core.php
+# Local-dev-only Action Scheduler shim for SQLite. Not deployed, but authored
+# here and not reproducible from anywhere else.
+!site/wp-content/mu-plugins/sr-sqlite-action-scheduler.php
+!site/wp-content/mu-plugins/sr-sqlite-as/
+
+# --- Generated / runtime ---
 site/wp-content/uploads/
 site/wp-content/upgrade/
 site/wp-content/cache/
+site/wp-content/languages/
+*.zip
 
-# Local Dev Tools (Binaries shouldn't be in Git)
+# --- Local dev tools (binaries) ---
 .tools/
-.claude/worktrees/
+.claude/*
+# The dev-server definition is project config, not a local preference - a fresh
+# clone needs it to start the site. settings.local.json stays out: it is this
+# machine's tool permissions.
+!.claude/launch.json
+.tokensave/
 
-# OS / Editor files
+# --- OS / editor ---
 .DS_Store
 *.log
-
-graphify-output/
-graphify-theme/graphify-out/
-
-.claude/
-.tokensave/

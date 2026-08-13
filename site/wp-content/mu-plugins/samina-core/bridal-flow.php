@@ -46,6 +46,20 @@ function sr_whatsapp_url( $product ) {
 	return 'https://wa.me/' . $number . '?text=' . rawurlencode( $text );
 }
 
+/**
+ * Contact page URL.
+ *
+ * Prefers the theme's slug-resolving helper so a renamed Contact page does not
+ * turn the bridal enquiry fallback - which exists precisely so nothing is ever
+ * a dead link - into a 404. Guarded with function_exists() because this is a
+ * mu-plugin: it loads before any theme and must survive a theme switch.
+ *
+ * @return string
+ */
+function sr_contact_url() {
+	return function_exists( 'sr_page_url' ) ? sr_page_url( 'contact' ) : home_url( '/contact/' );
+}
+
 function sr_inquire_button_html( $product, $classes = 'sr-whatsapp-inquire button alt' ) {
 	$url = sr_whatsapp_url( $product );
 
@@ -55,7 +69,7 @@ function sr_inquire_button_html( $product, $classes = 'sr-whatsapp-inquire butto
 		return sprintf(
 			'<a class="%s" href="%s">%s</a>',
 			esc_attr( $classes ),
-			esc_url( home_url( '/contact/' ) ),
+			esc_url( sr_contact_url() ),
 			esc_html__( 'Enquire about this piece', 'samina' )
 		);
 	}
@@ -145,12 +159,37 @@ add_filter( 'woocommerce_loop_add_to_cart_link', function ( $link, $product ) {
 	return $link;
 }, 100, 2 );
 
-/* ---------- Structured data: no Offer schema without a public price ---------- */
+/* ---------- Structured data: an offer without a price, not no offer ---------- */
 
+/**
+ * Bridals are quoted, not priced, and their real figure must not leak into the
+ * markup. Unsetting `offers` altogether was the wrong way to achieve that:
+ * Google requires `offers` on a Product, so the whole item was dropped and
+ * bridal pieces earned no rich result at all - the opposite of the intent.
+ *
+ * A PreOrder offer with no price is the accurate description of what is on sale
+ * here: the piece exists, it is available, and the price is set in conversation.
+ */
 add_filter( 'woocommerce_structured_data_product', function ( $markup, $product ) {
-	if ( sr_is_bridal( $product ) ) {
-		unset( $markup['offers'] );
+	if ( ! sr_is_bridal( $product ) ) {
+		return $markup;
 	}
+
+	$markup['offers'] = array(
+		array(
+			'@type'         => 'Offer',
+			'url'           => $product->get_permalink(),
+			'availability'  => 'https://schema.org/PreOrder',
+			'priceCurrency' => get_woocommerce_currency(),
+			// No price and no priceSpecification: the figure is quoted per
+			// commission and is not ours to publish.
+			'seller'        => array(
+				'@type' => 'Organization',
+				'name'  => get_bloginfo( 'name' ),
+			),
+		),
+	);
+
 	return $markup;
 }, 100, 2 );
 

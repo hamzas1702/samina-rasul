@@ -25,19 +25,18 @@ add_action( 'woocommerce_process_product_meta', function ( $post_id ) {
 } );
 
 /**
- * Helper: delivery time for a product.
+ * Frontend: delivery estimate under the price / before the form.
+ *
+ * A named function, not a closure, so the active theme can fold the lead time
+ * into a note of its own design with remove_action() rather than showing the
+ * same answer twice in one viewport.
  */
-function sr_get_delivery_time( $product_id ) {
-	return get_post_meta( $product_id, '_sr_delivery_time', true );
-}
-
-// Frontend: delivery estimate under the price / before the form.
-add_action( 'woocommerce_single_product_summary', function () {
+function sr_render_delivery_note() {
 	global $product;
 	if ( ! $product ) {
 		return;
 	}
-	$time = sr_get_delivery_time( $product->get_id() );
+	$time = get_post_meta( $product->get_id(), '_sr_delivery_time', true );
 	if ( $time ) {
 		printf(
 			'<p class="sr-delivery-note">%s</p>',
@@ -48,4 +47,5 @@ add_action( 'woocommerce_single_product_summary', function () {
 			) )
 		);
 	}
-}, 25 );
+}
+add_action( 'woocommerce_single_product_summary', 'sr_render_delivery_note', 25 );

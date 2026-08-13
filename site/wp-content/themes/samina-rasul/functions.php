@@ -5,6 +5,9 @@
 
 defined( 'ABSPATH' ) || exit;
 
+// Client-editable homepage copy and imagery (Customizer → Homepage Content).
+require_once get_stylesheet_directory() . '/inc/homepage-content.php';
+
 /**
  * Header: pull the mini-cart out of the primary-nav row and into the icon
  * row alongside search, then add an account icon next to it. The nav row
@@ -24,6 +27,13 @@ function sr_rehook_header_controls() {
 	remove_action( 'storefront_header', 'storefront_header_cart', 60 );
 	add_action( 'storefront_header', 'storefront_header_cart', 38 );
 	add_action( 'storefront_header', 'sr_header_account_link', 39 );
+	add_action( 'storefront_header', 'sr_header_saved_link', 40 );
+	/*
+	 * Priority 51 lands this after storefront_primary_navigation (50), i.e.
+	 * inside the navigation row rather than the icon row above it — a labelled
+	 * button sitting among bare icons read as a stray element.
+	 */
+	add_action( 'storefront_header', 'sr_header_consult_link', 51 );
 }
 add_action( 'after_setup_theme', 'sr_rehook_header_controls' );
 
@@ -45,6 +55,36 @@ function sr_header_account_link() {
 		esc_url( $account_url ),
 		'<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>', // phpcs:ignore WordPress.Security.EscapeOutput -- static, hand-written inline SVG, no user input.
 		esc_html__( 'My Account', 'samina-rasul' )
+	);
+}
+
+/**
+ * Saved-items icon for the header row. The count is written by sr-saved-count.js
+ * from the same localStorage key the product-page heart uses, so it is correct
+ * on the first paint after a save without a round trip.
+ */
+function sr_header_saved_link() {
+	printf(
+		'<a class="sr-header-icon sr-header-icon--saved" href="%1$s" data-sr-saved-link>%2$s<span class="screen-reader-text">%3$s</span></a>',
+		esc_url( sr_page_url( 'saved' ) ),
+		'<svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 1 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z"/></svg>', // phpcs:ignore WordPress.Security.EscapeOutput -- static, hand-written inline SVG.
+		esc_html__( 'Saved pieces', 'samina-rasul' )
+	);
+}
+
+/**
+ * Header consultation CTA.
+ *
+ * The bridal half of the store has no price and no add-to-cart, so booking a
+ * consultation is its checkout button. It is the one primary action in the
+ * header — the rest of the row is icons — which is what keeps the hierarchy
+ * readable rather than making everything shout.
+ */
+function sr_header_consult_link() {
+	printf(
+		'<a class="button sr-header-consult" href="%1$s"><span>%2$s</span></a>',
+		esc_url( sr_page_url( 'consultations' ) ),
+		esc_html__( 'Book a consultation', 'samina-rasul' )
 	);
 }
 
@@ -91,6 +131,50 @@ function sr_image_url( $file ) {
 	}
 
 	return $uploads['baseurl'] . '/' . $relative;
+}
+
+/**
+ * Permalink for a content page referenced by slug.
+ *
+ * Every link to About, Contact, Consultations, FAQs, Saved and the policy pages
+ * used to be a hardcoded home_url( '/about-us/' ). The client renames one page
+ * in wp-admin - which they are entitled to do - and the link 404s, including
+ * the header's primary "Book a consultation" CTA and the bridal enquiry
+ * fallback that exists precisely so nothing is ever a dead link.
+ *
+ * The slug is looked up as a page first; when it no longer resolves, the URL is
+ * still built from it, so behaviour is unchanged on a site whose slugs match
+ * and self-correcting on one whose slugs have moved but whose pages still exist
+ * under the same name.
+ *
+ * @param string $slug Page slug as shipped, e.g. 'about-us'.
+ * @return string Permalink.
+ */
+function sr_page_url( $slug ) {
+	static $cache = array();
+
+	$slug = trim( (string) $slug, '/' );
+	if ( '' === $slug ) {
+		return home_url( '/' );
+	}
+
+	if ( isset( $cache[ $slug ] ) ) {
+		return $cache[ $slug ];
+	}
+
+	$url  = home_url( '/' . $slug . '/' );
+	$page = get_page_by_path( $slug );
+
+	if ( $page instanceof WP_Post && 'publish' === $page->post_status ) {
+		$permalink = get_permalink( $page );
+		if ( is_string( $permalink ) && '' !== $permalink ) {
+			$url = $permalink;
+		}
+	}
+
+	$cache[ $slug ] = $url;
+
+	return $url;
 }
 
 /**
@@ -198,10 +282,43 @@ function sr_asset_version( $relative ) {
 	return (string) wp_get_theme()->get( 'Version' );
 }
 
+/*
+ * Every front-end asset this theme owns, in one callback.
+ *
+ * Priority 25, not 20: Storefront registers its WooCommerce sheet on this same
+ * hook at 20, so the stylesheet dependency below only resolves once it has run.
+ */
+/**
+ * Does this view load the GSAP/Lenis animation bundle?
+ *
+ * One answer, read by both the enqueue below and the pre-paint script in
+ * wp_head. They have to agree: that script adds classes which hide every
+ * reveal element until sr-ui.js clears them, so a page that sets the classes
+ * without loading the bundle shows nothing until the 2.5s failsafe fires.
+ *
+ * Excluded:
+ * - Cart, checkout and account. None of these effects appear there, and ~125 KB
+ *   of JS that can only cost a conversion has no business on the buying path.
+ * - The policy and FAQ pages. They are body copy with no choreography on them;
+ *   they were paying for the whole bundle to animate nothing.
+ *
+ * @return bool
+ */
+function sr_uses_animation_bundle() {
+	if ( function_exists( 'is_cart' ) && ( is_cart() || is_checkout() || is_account_page() ) ) {
+		return false;
+	}
+
+	if ( is_page() && array_key_exists( (string) get_post_field( 'post_name', get_queried_object_id() ), sr_editorial_pages() ) ) {
+		return false;
+	}
+
+	return true;
+}
+
 add_action( 'wp_enqueue_scripts', function () {
 	$assets  = get_stylesheet_directory_uri() . '/assets/js';
 	$css_ver = sr_asset_version( 'style.css' );
-	$js_ver  = sr_asset_version( 'assets/js/sr-ui.js' );
 	wp_enqueue_style( 'sr-fonts', get_stylesheet_directory_uri() . '/fonts/fonts-local.css', array(), '1' );
 	wp_enqueue_style( 'storefront-parent', get_template_directory_uri() . '/style.css', array( 'sr-fonts' ), $css_ver );
 	/* Storefront enqueues its WooCommerce and icon sheets after the child theme,
@@ -215,18 +332,87 @@ add_action( 'wp_enqueue_scripts', function () {
 	}
 	wp_enqueue_style( 'samina-rasul', get_stylesheet_uri(), $deps, $css_ver );
 
-	/* No animation bundle on the commerce path. None of these effects appear on
-	 * cart, checkout or account, and ~116 KB of JS that can only cost a
-	 * conversion has no business loading there. */
-	$sr_commerce_page = ( function_exists( 'is_cart' ) && ( is_cart() || is_checkout() || is_account_page() ) );
-	if ( ! $sr_commerce_page ) {
+	if ( sr_uses_animation_bundle() ) {
+		$ui_deps = array( 'sr-gsap', 'sr-scrolltrigger' );
+		/* Lenis only ever starts where the document opts in with
+		 * data-sr-smooth (see the language_attributes filter below), which is
+		 * the front page alone - everywhere else it was bytes that parsed and
+		 * did nothing. sr-ui.js already treats an absent Lenis as "no smooth
+		 * layer", so it degrades to native scrolling on its own. */
+		if ( is_front_page() ) {
+			wp_enqueue_script( 'sr-lenis', $assets . '/lenis.min.js', array(), '1.1.14', true );
+			$ui_deps[] = 'sr-lenis';
+		}
 		wp_enqueue_script( 'sr-gsap', $assets . '/gsap.min.js', array(), '3.12.5', true );
 		wp_enqueue_script( 'sr-scrolltrigger', $assets . '/ScrollTrigger.min.js', array( 'sr-gsap' ), '3.12.5', true );
-		wp_enqueue_script( 'sr-ui', $assets . '/sr-ui.js', array( 'sr-gsap', 'sr-scrolltrigger' ), $js_ver, true );
+		wp_enqueue_script( 'sr-ui', $assets . '/sr-ui.js', $ui_deps, sr_asset_version( 'assets/js/sr-ui.js' ), true );
 	}
-	/* Priority 25, not 20: Storefront registers its WooCommerce sheet on this
-	 * same hook at 20, so the dependency above only resolves once it has run. */
+
+	if ( class_exists( 'WooCommerce' ) ) {
+		// Search panel: printed on every page, including the commerce path
+		// above, which is why it carries no dependency on the bundle.
+		wp_enqueue_script( 'sr-search', $assets . '/sr-search.js', array(), sr_asset_version( 'assets/js/sr-search.js' ), true );
+		wp_localize_script(
+			'sr-search',
+			'srSearchL10n',
+			array(
+				'empty'   => __( 'Nothing matched that. Try an article code, a collection name, or a fabric.', 'samina-rasul' ),
+				'error'   => __( 'Search is unavailable right now. Please try again.', 'samina-rasul' ),
+				'viewAll' => __( 'View all results', 'samina-rasul' ),
+			)
+		);
+	}
+
+	// The swatch enhancement for variation dropdowns. Product pages only.
+	if ( function_exists( 'is_product' ) && is_product() ) {
+		// jQuery declared: WooCommerce announces the chosen variation only on
+		// its own jQuery events, which is where the live price figure comes from.
+		wp_enqueue_script( 'sr-product', $assets . '/sr-product.js', array( 'jquery' ), sr_asset_version( 'assets/js/sr-product.js' ), true );
+		wp_localize_script(
+			'sr-product',
+			'srProductL10n',
+			array(
+				// The shop's own money formatting, so the live figure cannot
+				// drift from what the cart will charge.
+				'price'   => array(
+					'decimals'    => wc_get_price_decimals(),
+					'decimalSep'  => wc_get_price_decimal_separator(),
+					'thousandSep' => wc_get_price_thousand_separator(),
+				),
+				/*
+				 * Strings the swatch and quantity controls build at runtime.
+				 * They were English literals in the JS, on controls every
+				 * customer uses - the rest of this theme is translatable and
+				 * these were the two places that silently were not.
+				 */
+				'qty'     => array(
+					'less' => __( 'Decrease quantity', 'samina-rasul' ),
+					'more' => __( 'Increase quantity', 'samina-rasul' ),
+				),
+				'strings' => array(
+					/* translators: %s: attribute name, e.g. "Size". */
+					'selectPrefix' => __( 'Select %s', 'samina-rasul' ),
+				),
+			)
+		);
+	}
 }, 25 );
+
+/*
+ * Opt the document into the Lenis layer used by sr-ui.js - front page only.
+ *
+ * Lenis takes ownership of the scroll: it preventDefaults the wheel and drives
+ * the page from its own rAF loop against a cached document height. When that
+ * height is measured before the page has finished laying out - which is what
+ * happens on a product whose gallery has no image, so the slot is a CSS
+ * placeholder that sizes itself rather than an <img> that fires load - the
+ * cached limit can be stale and the wheel then moves nothing at all. A product
+ * page that will not scroll is a lost sale; the homepage is the only page with
+ * scrub-driven choreography that actually needs the smooth layer.
+ */
+add_filter( 'language_attributes', function ( $output ) {
+	return is_front_page() ? $output . ' data-sr-smooth="true"' : $output;
+} );
 
 /**
  * Storefront auto-enqueues every child theme's style.css a second time
@@ -243,10 +429,43 @@ add_action( 'wp_enqueue_scripts', function () {
 }, 31 );
 
 /**
- * Pre-paint flags: preloader (once per session) and curtain-arrival state.
- * Runs inline in <head> so the overlay states exist before first paint.
+ * Preload the display face used by the hero headline.
+ *
+ * That headline is the LCP element on the homepage and on every category
+ * archive. Without this the browser only discovers the file after it has
+ * fetched and parsed the stylesheet that references it, so the headline paints
+ * in the fallback face and swaps visibly late. One file - the latin subset of
+ * the weight used above the fold - not the whole family, which would cost more
+ * than it saves.
  */
 add_action( 'wp_head', function () {
+	// Bodoni Moda, upright, latin subset — the file fonts-local.css resolves to
+	// for the headline. Named rather than derived: the hashed filenames come
+	// from Google's CSS and there is nothing in them to compute from.
+	$file = 'aFTQ7PxzY382XsXX63LUYJSKSKjWXFBP.woff2';
+
+	if ( ! file_exists( get_stylesheet_directory() . '/fonts/' . $file ) ) {
+		return;
+	}
+
+	printf(
+		'<link rel="preload" href="%s" as="font" type="font/woff2" crossorigin>' . "\n",
+		esc_url( get_stylesheet_directory_uri() . '/fonts/' . $file )
+	);
+}, 1 );
+
+/**
+ * Pre-paint flags: preloader (once per session) and curtain-arrival state.
+ * Runs inline in <head> so the overlay states exist before first paint.
+ *
+ * Skipped entirely where the animation bundle is not loaded: these classes hide
+ * every reveal element and are cleared only by sr-ui.js, so setting them on a
+ * page that never loads it would blank the content until the failsafe fires.
+ */
+add_action( 'wp_head', function () {
+	if ( ! sr_uses_animation_bundle() ) {
+		return;
+	}
 	?>
 	<script>
 	(function () {
@@ -306,31 +525,23 @@ add_action( 'wp_footer', function () {
 		var SEARCH_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.2" y2="16.2"/></svg>';
 		var CART_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8h12l-1 12H7L6 8z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>';
 
+		/* The header form stays in the DOM and stays submittable, so search
+		 * still works with JavaScript off; with JS on, its button becomes the
+		 * trigger for the full-width search panel instead (see sr-search.js). */
+		/* Saved count, from the same localStorage key the product heart writes. */
+		var savedLink = document.querySelector('[data-sr-saved-link]');
+		if (savedLink) {
+			try {
+				var saved = JSON.parse(localStorage.getItem('srSaved')) || [];
+				savedLink.setAttribute('data-count', String(saved.length));
+				savedLink.classList.toggle('has-items', saved.length > 0);
+			} catch (e) {}
+		}
+
 		var searchWrap = document.querySelector('.site-header .site-search');
-		var form = searchWrap && searchWrap.querySelector('form.woocommerce-product-search');
-		var input = form && form.querySelector('input.search-field');
-		var submitBtn = form && form.querySelector('button[type="submit"]');
-		if (searchWrap && form && input && submitBtn) {
+		var submitBtn = searchWrap && searchWrap.querySelector('form.woocommerce-product-search button[type="submit"]');
+		if (submitBtn) {
 			submitBtn.insertAdjacentHTML('afterbegin', SEARCH_ICON_SVG);
-			submitBtn.addEventListener('click', function (e) {
-				if (!searchWrap.classList.contains('is-open')) {
-					e.preventDefault();
-					searchWrap.classList.add('is-open');
-					input.focus();
-				}
-			});
-			input.addEventListener('keydown', function (e) {
-				if (e.key === 'Escape') {
-					input.value = '';
-					searchWrap.classList.remove('is-open');
-					submitBtn.focus();
-				}
-			});
-			document.addEventListener('click', function (e) {
-				if (searchWrap.classList.contains('is-open') && !searchWrap.contains(e.target) && !input.value) {
-					searchWrap.classList.remove('is-open');
-				}
-			});
 		}
 
 		/* Observe the stable #site-header-cart wrapper, not the .cart-contents
@@ -423,6 +634,61 @@ function sr_product_badge_text( $product ) {
 
 	return implode( ' · ', $bits );
 }
+
+/**
+ * Search results masthead.
+ *
+ * The stock header prints a lone <h1> inside a tall empty band, which reads as
+ * a broken rectangle. Replace it with an eyebrow, the query, a live count and a
+ * refine field, so the page states what was searched and lets it be corrected
+ * without going back to the header.
+ */
+function sr_search_masthead() {
+	if ( ! is_search() ) {
+		return;
+	}
+
+	$term  = get_search_query();
+	$total = (int) ( $GLOBALS['wp_query']->found_posts ?? 0 );
+	?>
+	<header class="sr-searchhead">
+		<span class="sr-eyebrow sr-eyebrow--ruled"><?php esc_html_e( 'Search the house', 'samina-rasul' ); ?></span>
+		<h1 class="sr-searchhead__title">
+			<?php
+			echo esc_html(
+				$total > 0
+					/* translators: %s: the search term. */
+					? sprintf( __( 'Results for “%s”', 'samina-rasul' ), $term )
+					/* translators: %s: the search term. */
+					: sprintf( __( 'Nothing for “%s”', 'samina-rasul' ), $term )
+			);
+			?>
+		</h1>
+		<?php if ( $total > 0 ) : ?>
+			<p class="sr-searchhead__count">
+				<?php
+				echo esc_html(
+					sprintf(
+						/* translators: %s: number of matching products. */
+						_n( '%s piece found', '%s pieces found', $total, 'samina-rasul' ),
+						number_format_i18n( $total )
+					)
+				);
+				?>
+			</p>
+		<?php endif; ?>
+		<div class="sr-searchhead__form">
+			<?php if ( function_exists( 'get_product_search_form' ) ) { get_product_search_form(); } ?>
+		</div>
+	</header>
+	<?php
+}
+add_action( 'woocommerce_before_main_content', 'sr_search_masthead', 20 );
+
+// The custom masthead above replaces it; two page titles would be redundant.
+add_filter( 'woocommerce_show_page_title', function ( $show ) {
+	return is_search() ? false : $show;
+} );
 
 /**
  * A search or category that returns nothing is otherwise a dead end: one blue
@@ -589,7 +855,8 @@ add_action( 'woocommerce_after_shop_loop_item_title', function () {
 	}
 }, 9 );
 
-// Short description, visible attributes, then the size pills.
+// Short description, then the actions row. A card sells the piece and gets
+// out of the way; fabrics, work and sizes are the product page's job.
 add_action( 'woocommerce_after_shop_loop_item_title', function () {
 	global $product;
 	if ( ! $product instanceof WC_Product ) {
@@ -599,43 +866,6 @@ add_action( 'woocommerce_after_shop_loop_item_title', function () {
 	$excerpt = $product->get_short_description();
 	if ( '' !== $excerpt ) {
 		printf( '<p class="sr-card-excerpt">%s</p>', esc_html( wp_strip_all_tags( $excerpt ) ) );
-	}
-
-	// Any attribute the shop owner marked visible, minus size, which is shown
-	// as pills below. Renders whatever the client configures - Fabric today,
-	// Shirt and Trousers when they add them - with no code change.
-	$specs = '';
-	foreach ( $product->get_attributes() as $attribute ) {
-		if ( ! $attribute->get_visible() || 'pa_size' === $attribute->get_name() ) {
-			continue;
-		}
-		$values = wc_get_product_terms( $product->get_id(), $attribute->get_name(), array( 'fields' => 'names' ) );
-		if ( ! $values ) {
-			continue;
-		}
-		$specs .= sprintf(
-			'<div class="sr-card-spec"><dt>%s</dt><dd>%s</dd></div>',
-			esc_html( wc_attribute_label( $attribute->get_name() ) ),
-			esc_html( implode( ', ', $values ) )
-		);
-	}
-	if ( '' !== $specs ) {
-		echo '<dl class="sr-card-specs">' . $specs . '</dl>'; // phpcs:ignore WordPress.Security.EscapeOutput -- assembled from escaped parts above.
-	}
-
-	// Sizes link through to the product page with that size preselected, which
-	// is as far as a loop card can honestly go for a variable product.
-	$sizes = wc_get_product_terms( $product->get_id(), 'pa_size', array( 'fields' => 'all' ) );
-	if ( $sizes ) {
-		echo '<ul class="sr-card-sizes" aria-label="' . esc_attr__( 'Available sizes', 'samina-rasul' ) . '">';
-		foreach ( $sizes as $size ) {
-			printf(
-				'<li><a href="%s">%s</a></li>',
-				esc_url( add_query_arg( 'attribute_pa_size', $size->slug, $product->get_permalink() ) ),
-				esc_html( $size->name )
-			);
-		}
-		echo '</ul>';
 	}
 
 	echo '<div class="sr-card-actions">';
@@ -655,79 +885,8 @@ add_action( 'woocommerce_after_shop_loop_item', function () {
 	echo '</div></div>';
 }, 20 );
 
-/**
- * Baseline SEO and social meta.
- *
- * WooCommerce already emits Product/Offer/Breadcrumb JSON-LD, and core emits
- * the <title>; what is missing for launch is a description, a canonical URL and
- * Open Graph/Twitter tags, without which every share renders as a bare link.
- *
- * Skipped entirely when a dedicated SEO plugin is active, so installing Yoast
- * or Rank Math later does not produce two competing sets of tags.
- */
-function sr_seo_meta() {
-	if ( defined( 'WPSEO_VERSION' ) || defined( 'RANK_MATH_VERSION' ) || defined( 'SEOPRESS_VERSION' ) || class_exists( 'All_in_One_SEO_Pack' ) ) {
-		return;
-	}
-
-	$title       = wp_get_document_title();
-	$description = '';
-	$image       = '';
-	$url         = home_url( add_query_arg( array() ) );
-
-	if ( is_singular() ) {
-		$post_id = get_queried_object_id();
-		$excerpt = has_excerpt( $post_id ) ? get_the_excerpt( $post_id ) : get_post_field( 'post_content', $post_id );
-		$description = wp_trim_words( wp_strip_all_tags( strip_shortcodes( (string) $excerpt ) ), 30, '' );
-		$image       = get_the_post_thumbnail_url( $post_id, 'large' );
-		$url         = get_permalink( $post_id );
-	} elseif ( is_tax() || is_category() || is_tag() ) {
-		$term        = get_queried_object();
-		$description = $term instanceof WP_Term ? wp_trim_words( wp_strip_all_tags( term_description( $term ) ), 30, '' ) : '';
-		$url         = $term instanceof WP_Term ? get_term_link( $term ) : $url;
-		if ( ! is_string( $url ) ) {
-			$url = home_url( '/' );
-		}
-	}
-
-	// Fall back to the tagline, then to a house description, so the tag is
-	// never emitted empty (worse for search results than omitting it).
-	if ( '' === trim( (string) $description ) ) {
-		$description = get_bloginfo( 'description', 'display' );
-	}
-	if ( '' === trim( (string) $description ) ) {
-		$description = __( 'Hand embellished formals and bridal couture from the house of Samina Rasul. Zardozi, mukesh and resham worked by hand, cut to your measure and made to order.', 'samina-rasul' );
-	}
-	if ( ! $image ) {
-		$image = sr_image_url( 'hero-section.jpg' );
-	}
-
-	printf( '<meta name="description" content="%s">' . "\n", esc_attr( $description ) );
-	printf( '<link rel="canonical" href="%s">' . "\n", esc_url( $url ) );
-	printf( '<meta property="og:site_name" content="%s">' . "\n", esc_attr( get_bloginfo( 'name' ) ) );
-	printf( '<meta property="og:type" content="%s">' . "\n", is_singular() ? 'product' : 'website' );
-	printf( '<meta property="og:title" content="%s">' . "\n", esc_attr( $title ) );
-	printf( '<meta property="og:description" content="%s">' . "\n", esc_attr( $description ) );
-	printf( '<meta property="og:url" content="%s">' . "\n", esc_url( $url ) );
-	printf( '<meta name="twitter:card" content="%s">' . "\n", $image ? 'summary_large_image' : 'summary' );
-	if ( $image ) {
-		printf( '<meta property="og:image" content="%s">' . "\n", esc_url( $image ) );
-		printf( '<meta name="twitter:image" content="%s">' . "\n", esc_url( $image ) );
-	}
-}
-add_action( 'wp_head', 'sr_seo_meta', 2 );
-
-/**
- * Core's rel_canonical() also emits a canonical on singular views, so leaving
- * it in place alongside sr_seo_meta() prints the tag twice. Drop core's copy
- * only when this theme is the one providing it.
- */
-add_action( 'wp', function () {
-	if ( defined( 'WPSEO_VERSION' ) || defined( 'RANK_MATH_VERSION' ) || defined( 'SEOPRESS_VERSION' ) || class_exists( 'All_in_One_SEO_Pack' ) ) {
-		return;
-	}
-	remove_action( 'wp_head', 'rel_canonical' );
-} );
+// Search-engine and social meta: canonical, description, Open Graph, schema.
+require_once get_stylesheet_directory() . '/inc/seo.php';
 
 /**
  * Trust strip shown on the product page and in the cart.
@@ -751,35 +910,90 @@ function sr_trust_signals() {
 		$lead = (string) get_post_meta( get_the_ID(), '_sr_delivery_time', true );
 	}
 	$made_copy = '' !== trim( $lead )
-		/* translators: %s: per-product lead time, e.g. "7-8 weeks". */
-		? sprintf( __( 'Cut and hand embellished for you in %s.', 'samina-rasul' ), $lead )
-		: __( 'Cut and hand embellished for you, typically in seven to nine weeks.', 'samina-rasul' );
+		/* translators: %s: per-product lead time, e.g. "8-9 weeks". */
+		? sprintf( __( 'Hand-stitched in %s', 'samina-rasul' ), $lead )
+		: __( 'Hand-stitched in eight to nine weeks', 'samina-rasul' );
 
 	$points = array(
 		array(
-			'title' => __( 'Made to order', 'samina-rasul' ),
+			// Stacked layers: cloth cut and built up by hand, one piece at a time.
+			'icon'  => '<path d="M12 3 3 7.5 12 12l9-4.5L12 3z"/><path d="M3 12.5 12 17l9-4.5"/><path d="M3 17.5 12 22l9-4.5"/>',
+			'title' => __( 'Made to Order', 'samina-rasul' ),
 			'copy'  => $made_copy,
 		),
 		array(
-			'title' => __( 'Clear terms', 'samina-rasul' ),
-			'copy'  => __( 'A 50% advance confirms your order; international orders are paid in full.', 'samina-rasul' ),
+			// A clock: how long the piece takes to reach them.
+			'icon'  => '<circle cx="12" cy="12" r="9"/><path d="M12 7v5.2l3.4 2"/>',
+			'title' => __( 'Worldwide Shipping', 'samina-rasul' ),
+			'copy'  => __( 'Tracked global delivery', 'samina-rasul' ),
 		),
 		array(
-			'title' => __( 'We answer', 'samina-rasul' ),
-			'copy'  => __( 'Questions about fit or fabric? Talk to the atelier on WhatsApp before you order.', 'samina-rasul' ),
+			// A heart: the fit is the part of this that is made for one person.
+			'icon'  => '<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 1 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z"/>',
+			'title' => __( 'Custom Fit', 'samina-rasul' ),
+			'copy'  => __( 'Cut to your measurements', 'samina-rasul' ),
 		),
 	);
 
 	echo '<ul class="sr-trust">';
 	foreach ( $points as $point ) {
 		printf(
-			'<li class="sr-trust__item"><strong>%s</strong><span>%s</span></li>',
+			'<li class="sr-trust__item"><span class="sr-trust__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">%s</svg></span><strong>%s</strong><span class="sr-trust__copy">%s</span></li>',
+			$point['icon'], // phpcs:ignore WordPress.Security.EscapeOutput -- static, hand-written inline SVG paths.
 			esc_html( $point['title'] ),
 			esc_html( $point['copy'] )
 		);
 	}
 	echo '</ul>';
 }
+
+/**
+ * Specification table for the product summary.
+ *
+ * The fabric and handwork of a couture piece are the buying decision, and until
+ * now they were only readable inside the "Additional information" accordion at
+ * the foot of the page. This lifts every attribute the shop owner marked visible
+ * into the summary, beside the price, where the decision is actually made.
+ *
+ * Anything the customer chooses is excluded - size, and any attribute used for
+ * variations - because those are the selectors below, not specifications;
+ * listing every fabric combo here as well would state four answers to a
+ * question the pills are about to ask once. Renders nothing at all when a
+ * product carries no visible, non-selectable attributes.
+ */
+function sr_single_specs() {
+	global $product;
+	if ( ! $product instanceof WC_Product ) {
+		return;
+	}
+
+	$rows = '';
+	foreach ( $product->get_attributes() as $attribute ) {
+		if ( ! $attribute->get_visible() || $attribute->get_variation() || 'pa_size' === $attribute->get_name() ) {
+			continue;
+		}
+		$values = wc_get_product_terms( $product->get_id(), $attribute->get_name(), array( 'fields' => 'names' ) );
+		if ( ! $values ) {
+			// A custom (non-taxonomy) attribute stores its values on the product.
+			$values = $attribute->get_options();
+		}
+		if ( ! $values ) {
+			continue;
+		}
+		$rows .= sprintf(
+			'<div class="sr-spec"><dt>%s</dt><dd>%s</dd></div>',
+			esc_html( wc_attribute_label( $attribute->get_name() ) ),
+			esc_html( implode( ', ', $values ) )
+		);
+	}
+
+	if ( '' === $rows ) {
+		return;
+	}
+
+	echo '<dl class="sr-specs">' . $rows . '</dl>'; // phpcs:ignore WordPress.Security.EscapeOutput -- assembled from escaped parts above.
+}
+add_action( 'woocommerce_single_product_summary', 'sr_single_specs', 21 );
 
 // On the product page, directly under the add-to-cart area.
 add_action( 'woocommerce_single_product_summary', 'sr_trust_signals', 35 );
@@ -839,13 +1053,124 @@ add_action( 'wp_footer', function () {
 }, 5 );
 
 /**
+ * The subscriber list.
+ *
+ * One private post per address rather than one option holding an array of them.
+ * The array version read, unserialised, linear-scanned, re-serialised and wrote
+ * the entire list on every signup - a multi-megabyte write on a public endpoint
+ * once the list is a few thousand long - and, having no removal path, collected
+ * a consent it could not honour.
+ *
+ * A post type costs no schema, dedupes on an indexed column, and gives the
+ * client a screen in wp-admin where a subscriber can be read, exported and
+ * deleted, which is the unsubscribe route until an email provider is chosen.
+ */
+function sr_register_subscriber_post_type() {
+	register_post_type(
+		'sr_subscriber',
+		array(
+			'labels'          => array(
+				'name'          => __( 'Subscribers', 'samina-rasul' ),
+				'singular_name' => __( 'Subscriber', 'samina-rasul' ),
+				'menu_name'     => __( 'Subscribers', 'samina-rasul' ),
+				'search_items'  => __( 'Search subscribers', 'samina-rasul' ),
+				'not_found'     => __( 'No subscribers yet.', 'samina-rasul' ),
+			),
+			'public'          => false,
+			'show_ui'         => true,
+			'show_in_menu'    => 'options-general.php',
+			'show_in_rest'    => false,
+			'supports'        => array( 'title' ),
+			'capability_type' => 'post',
+			'capabilities'    => array( 'create_posts' => 'do_not_allow' ),
+			'map_meta_cap'    => true,
+			// Addresses are personal data: never a URL, never in a sitemap,
+			// never in a feed.
+			'publicly_queryable'  => false,
+			'exclude_from_search' => true,
+			'has_archive'         => false,
+			'rewrite'             => false,
+			'query_var'           => false,
+		)
+	);
+}
+add_action( 'init', 'sr_register_subscriber_post_type' );
+
+/**
+ * Carry addresses over from the old sr_newsletter_emails option.
+ *
+ * Runs once, in wp-admin only, and leaves the option in place afterwards rather
+ * than deleting it - if this migration is wrong, the original list is still
+ * there to re-read. These are people who asked to be contacted; losing them
+ * silently is not an acceptable outcome of a refactor.
+ */
+function sr_migrate_newsletter_option() {
+	if ( get_option( 'sr_subscribers_migrated' ) ) {
+		return;
+	}
+
+	$list = get_option( 'sr_newsletter_emails', array() );
+
+	if ( is_array( $list ) ) {
+		foreach ( $list as $email ) {
+			$email = sanitize_email( (string) $email );
+			if ( ! is_email( $email ) ) {
+				continue;
+			}
+			$slug = 'sub-' . md5( strtolower( $email ) );
+			if ( get_page_by_path( $slug, OBJECT, 'sr_subscriber' ) instanceof WP_Post ) {
+				continue;
+			}
+			wp_insert_post(
+				array(
+					'post_type'   => 'sr_subscriber',
+					'post_status' => 'publish',
+					'post_title'  => $email,
+					'post_name'   => $slug,
+				)
+			);
+		}
+	}
+
+	update_option( 'sr_subscribers_migrated', '1', false );
+}
+add_action( 'admin_init', 'sr_migrate_newsletter_option' );
+
+/**
+ * The visitor's IP address, for rate limiting.
+ *
+ * REMOTE_ADDR is the only value the site can trust on its own. Behind a proxy
+ * or CDN it is the proxy, which collapses every visitor into one rate-limit
+ * bucket - so a forwarded header is honoured, but only when the site has been
+ * told in wp-config.php that there is a trusted proxy in front of it. Reading
+ * X-Forwarded-For unconditionally would be worse than useless: the header is
+ * attacker-controlled, and a rate limit keyed on it limits nobody.
+ *
+ * @return string
+ */
+function sr_client_ip() {
+	$remote = isset( $_SERVER['REMOTE_ADDR'] ) ? (string) wp_unslash( $_SERVER['REMOTE_ADDR'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitised -- validated by filter_var below.
+
+	if ( defined( 'SR_TRUSTED_PROXY' ) && SR_TRUSTED_PROXY && ! empty( $_SERVER['HTTP_X_FORWARDED_FOR'] ) ) {
+		$forwarded = explode( ',', (string) wp_unslash( $_SERVER['HTTP_X_FORWARDED_FOR'] ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitised -- validated by filter_var below.
+		// The last hop is the one the trusted proxy itself appended; earlier
+		// entries are whatever the client chose to claim.
+		$candidate = trim( (string) end( $forwarded ) );
+		if ( filter_var( $candidate, FILTER_VALIDATE_IP ) ) {
+			return $candidate;
+		}
+	}
+
+	return filter_var( $remote, FILTER_VALIDATE_IP ) ? $remote : 'unknown';
+}
+
+/**
  * Newsletter signup handler.
  *
- * Stores confirmed addresses in an option until the client picks an email
- * provider; swap the storage line for the provider's API call at that point.
- * Public endpoint, so it is defended accordingly: nonce, honeypot, explicit
- * consent, address validation, and a per-IP rate limit so it cannot be used to
- * flood the option row.
+ * Stores confirmed addresses as sr_subscriber posts until the client picks an
+ * email provider; swap the storage block for the provider's API call at that
+ * point. Public endpoint, so it is defended accordingly: nonce, honeypot,
+ * explicit consent, address validation, and a per-IP rate limit.
  */
 function sr_handle_newsletter() {
 	$referer = wp_get_referer();
@@ -872,22 +1197,30 @@ function sr_handle_newsletter() {
 	}
 
 	// Rate limit: five attempts per IP per hour.
-	$ip  = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : 'unknown';
-	$key = 'sr_nl_' . md5( $ip );
+	$key  = 'sr_nl_' . md5( sr_client_ip() );
 	$hits = (int) get_transient( $key );
 	if ( $hits >= 5 ) {
 		$fail( 'err' );
 	}
 	set_transient( $key, $hits + 1, HOUR_IN_SECONDS );
 
-	$list = get_option( 'sr_newsletter_emails', array() );
-	if ( ! is_array( $list ) ) {
-		$list = array();
-	}
-	if ( ! in_array( $email, $list, true ) ) {
-		$list[] = $email;
-		// Not autoloaded: this can grow, and it is not needed on every request.
-		update_option( 'sr_newsletter_emails', $list, false );
+	/*
+	 * Dedupe on post_name, which is an indexed column, rather than by scanning
+	 * the list. The address is hashed into the slug so it is not repeated in a
+	 * second place, and looked up with a direct query rather than WP_Query,
+	 * which would not use the index for a post_name lookup on a private type.
+	 */
+	$existing = get_page_by_path( 'sub-' . md5( strtolower( $email ) ), OBJECT, 'sr_subscriber' );
+
+	if ( ! $existing instanceof WP_Post ) {
+		wp_insert_post(
+			array(
+				'post_type'   => 'sr_subscriber',
+				'post_status' => 'publish',
+				'post_title'  => $email,
+				'post_name'   => 'sub-' . md5( strtolower( $email ) ),
+			)
+		);
 	}
 
 	$fail( 'ok' );
@@ -927,35 +1260,76 @@ add_filter( 'body_class', function ( $classes ) {
 } );
 
 /**
- * Size chart - button on product pages opening a native <dialog>.
- * Measurements are placeholders until the client supplies the real chart.
+ * Size guide - a link beside the size pills opening the atelier's own chart.
+ *
+ * The chart is an image the atelier maintains (uploads/size-chart.*), which is
+ * the form they actually keep it in. No image, no guide: a table of em-dashes
+ * is worse than no link at all, and the "Customized" route below the pills is
+ * the real answer for anyone between sizes.
+ *
+ * sr-product.js lifts the trigger up into the size pill row; it stays here in
+ * the markup so it is still reachable when that script does not run.
  */
+function sr_size_chart_image() {
+	static $url = null;
+	if ( null !== $url ) {
+		return $url;
+	}
+	$url = '';
+	foreach ( array( 'size-chart.jpeg', 'size-chart.jpg', 'size-chart.png', 'size-chart.webp' ) as $file ) {
+		$url = sr_image_url( $file );
+		if ( '' !== $url ) {
+			break;
+		}
+	}
+	return $url;
+}
+
 add_action( 'woocommerce_single_product_summary', function () {
+	global $product;
+
+	/*
+	 * Only where there is a size to choose. sr-product.js lifts this trigger up
+	 * into the size pill row; on a product whose only variation is fabric there
+	 * is no such row, and the link was left stranded mid-column pointing at a
+	 * chart for a choice the page never offers.
+	 */
+	if ( ! $product instanceof WC_Product ) {
+		return;
+	}
+	$sizes = wc_get_product_terms( $product->get_id(), 'pa_size', array( 'fields' => 'ids' ) );
+	if ( ! $sizes ) {
+		return;
+	}
+
+	$chart = sr_size_chart_image();
+	if ( '' === $chart ) {
+		return;
+	}
 	?>
-	<p><button type="button" class="sr-size-chart-open sr-linklike" aria-haspopup="dialog"><?php esc_html_e( 'Size chart', 'samina-rasul' ); ?></button></p>
-	<dialog class="sr-size-chart" aria-label="<?php esc_attr_e( 'Size chart', 'samina-rasul' ); ?>">
-		<h3><?php esc_html_e( 'Size chart', 'samina-rasul' ); ?></h3>
-		<table>
-			<thead>
-				<tr><th><?php esc_html_e( 'Size', 'samina-rasul' ); ?></th><th><?php esc_html_e( 'Bust (in)', 'samina-rasul' ); ?></th><th><?php esc_html_e( 'Waist (in)', 'samina-rasul' ); ?></th><th><?php esc_html_e( 'Hip (in)', 'samina-rasul' ); ?></th></tr>
-			</thead>
-			<tbody>
-				<tr><td>XS</td><td>-</td><td>-</td><td>-</td></tr>
-				<tr><td>S</td><td>-</td><td>-</td><td>-</td></tr>
-				<tr><td>M</td><td>-</td><td>-</td><td>-</td></tr>
-				<tr><td>ML</td><td>-</td><td>-</td><td>-</td></tr>
-				<tr><td>L</td><td>-</td><td>-</td><td>-</td></tr>
-				<tr><td>XL</td><td>-</td><td>-</td><td>-</td></tr>
-			</tbody>
-		</table>
+	<div class="sr-size-chart-row"><button type="button" class="sr-size-chart-open sr-linklike" aria-haspopup="dialog"><?php esc_html_e( 'Size guide', 'samina-rasul' ); ?></button></div>
+	<dialog class="sr-size-chart sr-size-chart--image" aria-labelledby="sr-size-chart-title">
+		<button type="button" class="sr-size-chart-close" aria-label="<?php esc_attr_e( 'Close size guide', 'samina-rasul' ); ?>">
+			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+		</button>
+		<span class="sr-eyebrow"><?php esc_html_e( 'Fit', 'samina-rasul' ); ?></span>
+		<h3 id="sr-size-chart-title"><?php esc_html_e( 'Size guide', 'samina-rasul' ); ?></h3>
+		<img class="sr-size-chart__image" src="<?php echo esc_url( $chart ); ?>" alt="<?php esc_attr_e( 'Samina Rasul size chart, measurements in inches', 'samina-rasul' ); ?>" loading="lazy" decoding="async">
 		<p class="sr-size-chart__note"><?php esc_html_e( 'Between sizes, or after a different fit? Choose “Customized” and we will cut to your measurements.', 'samina-rasul' ); ?></p>
-		<button type="button" class="button sr-size-chart-close"><?php esc_html_e( 'Close', 'samina-rasul' ); ?></button>
 	</dialog>
 	<script>
 	(function () {
+		var dialog = document.querySelector('.sr-size-chart');
+		if (!dialog) { return; }
 		document.addEventListener('click', function (e) {
-			if (e.target.closest('.sr-size-chart-open')) { document.querySelector('.sr-size-chart').showModal(); }
-			if (e.target.closest('.sr-size-chart-close')) { document.querySelector('.sr-size-chart').close(); }
+			if (e.target.closest('.sr-size-chart-open')) { dialog.showModal(); return; }
+			if (e.target.closest('.sr-size-chart-close')) { dialog.close(); return; }
+			/* Clicking the backdrop: the event lands on the dialog itself, so
+			 * anything outside its content box is a click on the backdrop. */
+			if (e.target === dialog) {
+				var box = dialog.getBoundingClientRect();
+				if (e.clientX < box.left || e.clientX > box.right || e.clientY < box.top || e.clientY > box.bottom) { dialog.close(); }
+			}
 		});
 	})();
 	</script>
@@ -963,74 +1337,1446 @@ add_action( 'woocommerce_single_product_summary', function () {
 }, 24 );
 
 /**
- * Footer: oversized outlined wordmark above the link columns.
+ * The house star: the four-point mark used as the footer crest and as the
+ * separator between footer links. Drawn rather than shipped as an image so it
+ * inherits currentColor and stays crisp at any size.
+ *
+ * @param string $class Class attribute for the SVG.
+ * @return string Inline SVG.
  */
-add_action( 'storefront_footer', function () {
-	echo '<div class="sr-footer-wordmark" aria-hidden="true"><span>Samina&nbsp;Rasul</span></div>';
-}, 4 );
+function sr_star_svg( $class = 'sr-star' ) {
+	return '<svg class="' . esc_attr( $class ) . '" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+		<path d="M32 3 C34 20 44 30 61 32 C44 34 34 44 32 61 C30 44 20 34 3 32 C20 30 30 20 32 3 Z" stroke="currentColor" stroke-width="1.1"/>
+		<circle cx="32" cy="32" r="2.6" fill="currentColor"/>
+	</svg>';
+}
 
 /**
- * Footer columns per the brief: About the Brand / Customer Service / Information.
+ * The mark that crowns the footer lockup.
+ *
+ * Prefers the WordPress Site Icon, because that is the one mark the client can
+ * already change from Customizer → Site Identity without touching the theme;
+ * then the custom logo; then the drawn star, so the crest is never missing.
+ *
+ * @return string Escaped markup.
  */
-function sr_footer_columns() {
+function sr_footer_mark() {
+	$icon = get_site_icon_url( 192 );
+	if ( $icon ) {
+		return sprintf(
+			'<img src="%s" alt="" width="96" height="96" loading="lazy" decoding="async">',
+			esc_url( $icon )
+		);
+	}
+
+	/*
+	 * The house monogram, cut from the client lockup and rendered in cream so it
+	 * reads on the burgundy footer. Ahead of the custom logo because that one is
+	 * the full lockup — the wordmark repeats the site name printed directly below.
+	 */
+	$mark = sr_image_url( 'logo-mark.png' );
+	if ( '' !== $mark ) {
+		return sprintf(
+			'<img src="%s" alt="" width="164" height="146" loading="lazy" decoding="async">',
+			esc_url( $mark )
+		);
+	}
+
+	if ( has_custom_logo() ) {
+		return wp_get_attachment_image( (int) get_theme_mod( 'custom_logo' ), 'medium', false, array( 'alt' => '' ) );
+	}
+
+	return sr_star_svg( 'sr-star sr-star--crest' );
+}
+
+/**
+ * Site branding: the client's lockup, shipped with the theme.
+ *
+ * Overrides Storefront's pluggable original — a child theme's functions.php
+ * loads first, so the parent skips its own definition. The logo lives in
+ * assets/images/ rather than the media library because attachments are database
+ * rows and the deploy syncs no database; a Customizer logo still wins when set.
+ *
+ * @param bool $echo Echo the markup, or return it.
+ * @return string
+ */
+function storefront_site_title_or_logo( $echo = true ) {
+	/*
+	 * Always a div, never an h1. Storefront promotes the logo to <h1> on the
+	 * front page, where front-page.php already carries the hero headline as the
+	 * page's h1 - two h1s on the most important page on the site, one of them
+	 * saying nothing but the brand name that is already in the <title>.
+	 */
+	$tag = 'div';
+
+	// Horizontal lockup: the client's original is stacked, which is too tall for
+	// a header row — its wordmark ran into the navigation beneath.
+	$logo = sr_image_url( 'logo-header.png' );
+
+	if ( has_custom_logo() ) {
+		$inner = get_custom_logo();
+	} elseif ( '' !== $logo ) {
+		$inner = sprintf(
+			'<a class="sr-brand" href="%1$s" rel="home"><img src="%2$s" width="693" height="96" alt="%3$s" decoding="async"></a>',
+			esc_url( home_url( '/' ) ),
+			esc_url( $logo ),
+			esc_attr( get_bloginfo( 'name' ) )
+		);
+	} else {
+		$inner = sprintf(
+			'<a href="%s" rel="home">%s</a>',
+			esc_url( home_url( '/' ) ),
+			esc_html( get_bloginfo( 'name' ) )
+		);
+	}
+
+	$html = sprintf( '<%1$s class="sr-branding">%2$s</%1$s>', $tag, $inner );
+
+	if ( ! $echo ) {
+		return $html;
+	}
+
+	echo $html; // phpcs:ignore WordPress.Security.EscapeOutput -- assembled from escaped parts.
+	return '';
+}
+
+/**
+ * Footer crest: mark over the wordmark over the house line, centred.
+ */
+function sr_footer_lockup() {
+	printf(
+		'<div class="sr-footer-crest"><span class="sr-footer-crest__mark" aria-hidden="true">%1$s</span><a class="sr-footer-crest__name" href="%2$s" rel="home">%3$s</a><p class="sr-footer-crest__line">%4$s</p></div>',
+		sr_footer_mark(), // phpcs:ignore WordPress.Security.EscapeOutput -- escaped in sr_footer_mark().
+		esc_url( home_url( '/' ) ),
+		esc_html( get_bloginfo( 'name' ) ),
+		esc_html__( 'Bridal Atelier', 'samina-rasul' )
+	);
+}
+add_action( 'storefront_footer', 'sr_footer_lockup', 5 );
+
+/**
+ * Primary footer row: the five destinations a visitor actually navigates to,
+ * on one rule-bounded line separated by the house star.
+ */
+function sr_footer_nav() {
 	/*
 	 * Label/URL pairs as list rows rather than translated-string array keys:
 	 * as keys, two entries that happen to translate identically in some locale
 	 * would silently overwrite each other and vanish from the footer.
 	 */
-	$columns = array(
-		array(
-			'heading' => __( 'About the Brand', 'samina-rasul' ),
-			'links'   => array(
-				array( 'label' => __( 'About Us', 'samina-rasul' ), 'path' => '/about-us/' ),
-				array( 'label' => __( 'FAQs', 'samina-rasul' ), 'path' => '/faqs/' ),
-			),
-		),
-		array(
-			'heading' => __( 'Customer Service', 'samina-rasul' ),
-			'links'   => array(
-				array( 'label' => __( 'Contact Us', 'samina-rasul' ), 'path' => '/contact/' ),
-				array( 'label' => __( 'Payments & Shipping', 'samina-rasul' ), 'path' => '/shipping-policy/' ),
-			),
-		),
-		array(
-			'heading' => __( 'Information', 'samina-rasul' ),
-			'links'   => array(
-				array( 'label' => __( 'My Account', 'samina-rasul' ), 'path' => '/my-account/' ),
-				array( 'label' => __( 'Shipping Policy', 'samina-rasul' ), 'path' => '/shipping-policy/' ),
-				array( 'label' => __( 'Refund Policy', 'samina-rasul' ), 'path' => '/refund-policy/' ),
-				array( 'label' => __( 'Terms of Service', 'samina-rasul' ), 'path' => '/terms-of-service/' ),
-				array( 'label' => __( 'Privacy Policy', 'samina-rasul' ), 'path' => '/privacy-policy/' ),
-			),
-		),
+	$links = array(
+		array( 'label' => __( 'About Us', 'samina-rasul' ), 'url' => sr_page_url( 'about-us' ) ),
+		array( 'label' => __( 'Client Care', 'samina-rasul' ), 'url' => sr_page_url( 'contact' ) ),
+		array( 'label' => __( 'Consultations', 'samina-rasul' ), 'url' => sr_page_url( 'consultations' ) ),
+		array( 'label' => __( 'Information', 'samina-rasul' ), 'url' => sr_page_url( 'faqs' ) ),
+		array( 'label' => __( 'Saved', 'samina-rasul' ), 'url' => sr_page_url( 'saved' ) ),
+		array( 'label' => __( 'My Account', 'samina-rasul' ), 'url' => sr_page_url( 'my-account' ) ),
 	);
 
-	echo '<div class="sr-footer-cols">';
-	foreach ( $columns as $column ) {
-		// h3, not h4: the page's own content stops at h2, and skipping a level
-		// breaks heading navigation for screen-reader users.
-		echo '<div class="sr-footer-col"><h3>' . esc_html( $column['heading'] ) . '</h3><ul>';
-		foreach ( $column['links'] as $link ) {
-			printf(
-				'<li><a href="%s">%s</a></li>',
-				esc_url( home_url( $link['path'] ) ),
-				esc_html( $link['label'] )
-			);
+	echo '<nav class="sr-footer-nav" aria-label="' . esc_attr__( 'Footer', 'samina-rasul' ) . '">';
+	foreach ( $links as $i => $link ) {
+		if ( $i ) {
+			echo '<span class="sr-footer-nav__sep" aria-hidden="true">' . sr_star_svg( 'sr-star sr-star--sep' ) . '</span>'; // phpcs:ignore WordPress.Security.EscapeOutput -- static inline SVG.
 		}
-		echo '</ul></div>';
+		printf( '<a href="%s">%s</a>', esc_url( $link['url'] ), esc_html( $link['label'] ) );
 	}
-	echo '</div>';
+	echo '</nav>';
 }
-add_action( 'storefront_footer', 'sr_footer_columns', 5 );
+add_action( 'storefront_footer', 'sr_footer_nav', 10 );
 
 /**
- * Footer: replace Storefront credit with brand note.
+ * Policy links. Kept out of the primary row so that row stays legible, but
+ * still crawlable and one click away, which is what the policies are for.
  */
-add_filter( 'storefront_credit_link', '__return_false' );
-add_filter( 'storefront_copyright_text', function () {
-	return sprintf(
-		/* translators: %s: year */
-		esc_html__( '© %s Samina Rasul, every piece made to order and hand finished in Pakistan.', 'samina-rasul' ),
-		gmdate( 'Y' )
+function sr_footer_legal_nav() {
+	echo '<nav class="sr-footer-legal" aria-label="' . esc_attr__( 'Policies', 'samina-rasul' ) . '">';
+	foreach ( sr_legal_pages() as $slug => $label ) {
+		printf( '<a href="%s">%s</a>', esc_url( sr_page_url( $slug ) ), esc_html( $label ) );
+	}
+	echo '</nav>';
+}
+
+/**
+ * The reference pages: policies and FAQs.
+ *
+ * Single source of truth for two things that must agree — the footer's policy
+ * row, and the only pages allowed to show a breadcrumb. Kept as slug => label
+ * so adding a policy updates both at once.
+ *
+ * @return array<string, string> Page slug => link label.
+ */
+function sr_legal_pages() {
+	return array(
+		'faqs'             => __( 'FAQs', 'samina-rasul' ),
+		'shipping-policy'  => __( 'Payments &amp; Shipping', 'samina-rasul' ),
+		'refund-policy'    => __( 'Refund Policy', 'samina-rasul' ),
+		'terms-of-service' => __( 'Terms of Service', 'samina-rasul' ),
+		'privacy-policy'   => __( 'Privacy Policy', 'samina-rasul' ),
+	);
+}
+add_action( 'storefront_footer', 'sr_footer_legal_nav', 15 );
+
+/**
+ * Social links, as wordmarks rather than icon buttons to match the rest of the
+ * footer's typographic treatment. Rendered only for handles the client has
+ * actually set, so the row never shows a link that goes nowhere.
+ *
+ * @return string Markup, or '' when no handle is configured.
+ */
+function sr_footer_social_html() {
+	$networks = array(
+		'instagram' => __( 'Instagram', 'samina-rasul' ),
+		'pinterest' => __( 'Pinterest', 'samina-rasul' ),
+		'facebook'  => __( 'Facebook', 'samina-rasul' ),
+	);
+
+	$links = array();
+	foreach ( $networks as $network => $label ) {
+		$url = trim( (string) get_option( 'sr_social_' . $network, '' ) );
+		if ( '' === $url ) {
+			continue;
+		}
+		$links[] = sprintf(
+			'<a class="sr-social" href="%1$s" target="_blank" rel="noopener noreferrer">%2$s</a>',
+			esc_url( $url ),
+			esc_html( $label )
+		);
+	}
+
+	return $links ? '<div class="sr-footer-social">' . implode( '', $links ) . '</div>' : '';
+}
+
+/**
+ * Bottom bar: copyright and house note on the left, social wordmarks right.
+ *
+ * Replaces storefront_credit() (removed below) rather than sitting beside it,
+ * so the two halves of the row are siblings inside one flex container instead
+ * of two stacked blocks.
+ */
+function sr_footer_bottom() {
+	printf(
+		'<div class="site-info sr-footer-bottom"><p class="sr-footer-bottom__copy"><span>%1$s</span><em>%2$s</em></p>%3$s</div>',
+		esc_html(
+			sprintf(
+				/* translators: 1: year, 2: site name. */
+				__( '© %1$s %2$s.', 'samina-rasul' ),
+				gmdate( 'Y' ),
+				get_bloginfo( 'name' )
+			)
+		),
+		esc_html__( 'Every piece made to order and hand finished in Pakistan.', 'samina-rasul' ),
+		sr_footer_social_html() // phpcs:ignore WordPress.Security.EscapeOutput -- assembled from escaped parts.
+	);
+}
+add_action( 'storefront_footer', 'sr_footer_bottom', 20 );
+
+/*
+ * Storefront hooks its credit line in from the parent functions.php, which
+ * loads after this file, so the removal has to wait for after_setup_theme.
+ */
+add_action( 'after_setup_theme', function () {
+	remove_action( 'storefront_footer', 'storefront_credit', 20 );
+} );
+
+/**
+ * Social profile URLs (WooCommerce → Settings → General).
+ */
+add_filter( 'woocommerce_general_settings', function ( $settings ) {
+	foreach ( array( 'instagram' => 'Instagram', 'facebook' => 'Facebook', 'pinterest' => 'Pinterest' ) as $key => $label ) {
+		$settings[] = array(
+			/* translators: %s: social network name. */
+			'title'    => sprintf( __( '%s profile URL', 'samina-rasul' ), $label ),
+			'desc'     => __( 'Full URL. Leave blank to hide the link in the footer.', 'samina-rasul' ),
+			'id'       => 'sr_social_' . $key,
+			'type'     => 'url',
+			'default'  => '',
+			'desc_tip' => true,
+		);
+	}
+	return $settings;
+} );
+
+/**
+ * A horizontally browsable row of products.
+ *
+ * The homepage puts merchandise in front of the visitor at several points in
+ * the scroll rather than once, so this is rendered more than once per page and
+ * the controls have to be scoped: each rail carries its own `data-sr-rail` key
+ * and its buttons carry the same key, which is what sr-ui.js pairs them by.
+ *
+ * The row renders nothing at all when the query matches no products, so an
+ * empty category cannot leave a heading stranded above WooCommerce's
+ * "No products were found" notice.
+ *
+ * @param array $args {
+ *     @type string $key       Unique slug for this rail. Required.
+ *     @type string $eyebrow   Small caps line above the heading.
+ *     @type string $heading   Section heading.
+ *     @type array  $atts      [products] shortcode attributes.
+ *     @type string $cta_url   Destination for the trailing "view all" button.
+ *     @type string $cta_label Label for that button.
+ *     @type string $class     Extra class on the <section>.
+ *     @type string $layout    'rail' (default) for a horizontal scroller, or
+ *                             'grid' for a static grid across the content
+ *                             width. A page of identical scrollers stops
+ *                             reading as separate offers.
+ * }
+ */
+function sr_product_rail( $args ) {
+	$args = wp_parse_args(
+		$args,
+		array(
+			'key'       => '',
+			'eyebrow'   => '',
+			'heading'   => '',
+			'atts'      => array(),
+			'cta_url'   => '',
+			'cta_label' => '',
+			'class'     => '',
+			'layout'    => 'rail',
+		)
+	);
+
+	$is_grid = 'grid' === $args['layout'];
+
+	if ( '' === $args['key'] || ! shortcode_exists( 'products' ) ) {
+		return;
+	}
+
+	$atts = wp_parse_args( $args['atts'], array( 'limit' => 8, 'columns' => 4 ) );
+	$pairs = '';
+	foreach ( $atts as $name => $value ) {
+		$pairs .= sprintf( ' %s="%s"', sanitize_key( $name ), esc_attr( $value ) );
+	}
+
+	$html = do_shortcode( '[products' . $pairs . ']' );
+
+	// The shortcode returns its own "no products were found" notice rather than
+	// an empty string. That notice carries no list item, so the presence of one
+	// is what distinguishes a rendered row from an empty category.
+	if ( false === strpos( $html, '<li' ) ) {
+		return;
+	}
+
+	$key = sanitize_key( $args['key'] );
+	?>
+	<section class="sr-section sr-rail <?php echo $is_grid ? 'sr-rail--grid ' : ''; ?><?php echo esc_attr( $args['class'] ); ?>">
+		<div class="sr-section__inner">
+			<div class="sr-rowhead" data-sr-reveal>
+				<div>
+					<?php if ( '' !== $args['eyebrow'] ) : ?>
+						<span class="sr-eyebrow"><?php echo esc_html( $args['eyebrow'] ); ?></span>
+					<?php endif; ?>
+					<h2><span class="sr-rowhead__arrow" aria-hidden="true">→</span> <?php echo esc_html( $args['heading'] ); ?></h2>
+				</div>
+				<div class="sr-atelier__actions">
+					<?php if ( ! $is_grid ) : ?>
+					<div class="sr-rail-controls" aria-label="<?php esc_attr_e( 'Browse this row', 'samina-rasul' ); ?>">
+						<button type="button" class="sr-rail-control" data-sr-product-scroll="prev" data-sr-rail="<?php echo esc_attr( $key ); ?>" aria-label="<?php esc_attr_e( 'Show previous pieces', 'samina-rasul' ); ?>">←</button>
+						<button type="button" class="sr-rail-control" data-sr-product-scroll="next" data-sr-rail="<?php echo esc_attr( $key ); ?>" aria-label="<?php esc_attr_e( 'Show next pieces', 'samina-rasul' ); ?>">→</button>
+					</div>
+					<?php endif; ?>
+					<?php if ( '' !== $args['cta_url'] && '' !== $args['cta_label'] ) : ?>
+						<a class="button sr-ghost" href="<?php echo esc_url( $args['cta_url'] ); ?>"><span><?php echo esc_html( $args['cta_label'] ); ?></span></a>
+					<?php endif; ?>
+				</div>
+			</div>
+			<div class="<?php echo $is_grid ? 'sr-product-grid' : 'sr-product-rail'; ?>"<?php echo $is_grid ? '' : ' data-sr-product-rail="' . esc_attr( $key ) . '"'; ?>>
+				<?php echo $html; // phpcs:ignore WordPress.Security.EscapeOutput -- WooCommerce shortcode output. ?>
+			</div>
+		</div>
+	</section>
+	<?php
+}
+
+/* ---------------------------------------------------------------------------
+ * Search panel
+ *
+ * The header icon opens a full-width panel that answers as the visitor types,
+ * rather than sending them to a results page for every guess. The panel is
+ * progressive enhancement over the real search form, which stays in the header
+ * and stays submittable, so search still works with JavaScript off.
+ * ------------------------------------------------------------------------ */
+
+/**
+ * Read-only product search for the panel.
+ *
+ * Public on purpose - it returns exactly what the public search results page
+ * already returns, so there is nothing here to gate. It is deliberately narrow:
+ * published products only, catalogue-visible only, a hard result ceiling, and
+ * every field escaped or plain-text before it leaves.
+ *
+ * @param WP_REST_Request $request Request.
+ * @return WP_REST_Response
+ */
+function sr_rest_search( WP_REST_Request $request ) {
+	// The route is registered unconditionally; WooCommerce is not guaranteed to
+	// be active when it is called, and every product helper below needs it.
+	if ( ! function_exists( 'wc_get_product' ) ) {
+		return new WP_REST_Response( array( 'query' => '', 'results' => array() ) );
+	}
+
+	$query_string = trim( (string) $request->get_param( 'q' ) );
+
+	/*
+	 * The saved-items page asks for a specific set of products rather than a
+	 * search. Same shape of response, same escaping, so it reuses this route
+	 * instead of a second one that would drift from it.
+	 */
+	$ids = array_slice(
+		array_filter( array_map( 'absint', (array) $request->get_param( 'ids' ) ) ),
+		0,
+		60
+	);
+
+	$limit = $ids ? count( $ids ) : 8;
+
+	$args = array(
+		'post_type'           => 'product',
+		'post_status'         => 'publish',
+		'posts_per_page'      => $limit,
+		'ignore_sticky_posts' => true,
+		'no_found_rows'       => true,
+		'suppress_filters'    => false,
+	);
+
+	if ( $ids ) {
+		$args['post__in'] = $ids;
+		$args['orderby']  = 'post__in';
+	} elseif ( '' !== $query_string ) {
+		// Bound the term: a megabyte of "s" is a pointless LIKE scan.
+		$args['s'] = mb_substr( $query_string, 0, 120 );
+	} else {
+		// Nothing typed yet: show the newest pieces, so the panel opens onto
+		// merchandise instead of an empty box.
+		$args['orderby'] = 'date';
+		$args['order']   = 'DESC';
+	}
+
+	/*
+	 * Respect the catalogue visibility flags the shop owner set per product.
+	 *
+	 * Applied to the id list as well as to searches. The id list was previously
+	 * exempt on the reasoning that it is "the visitor's own saved set" - but the
+	 * server has no way to know that. Anyone can call
+	 * /wp-json/samina/v1/search?ids[]=1&ids[]=2… and read back the title, price
+	 * and permalink of published products the shop owner deliberately hid from
+	 * the catalogue, one integer at a time.
+	 */
+	if ( function_exists( 'wc_get_product_visibility_term_ids' ) ) {
+		$visibility = wc_get_product_visibility_term_ids();
+		$hidden     = ( ! $ids && '' !== $query_string ) ? 'exclude-from-search' : 'exclude-from-catalog';
+		if ( ! empty( $visibility[ $hidden ] ) ) {
+			$args['tax_query'] = array( // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_tax_query -- bounded to 8 rows.
+				array(
+					'taxonomy' => 'product_visibility',
+					'field'    => 'term_taxonomy_id',
+					'terms'    => array( $visibility[ $hidden ] ),
+					'operator' => 'NOT IN',
+				),
+			);
+		}
+	}
+
+	$results = array();
+	$query   = new WP_Query( $args );
+
+	foreach ( $query->posts as $post ) {
+		$product = wc_get_product( $post );
+		if ( ! $product instanceof WC_Product ) {
+			continue;
+		}
+
+		/*
+		 * The panel prints the price as text, so the rendered price HTML has to
+		 * be reduced to text: drop the screen-reader duplicate WooCommerce adds
+		 * to a price range ("Price range: x through y") before stripping tags,
+		 * then decode the entities (&#8360;, &nbsp;) that stripping leaves
+		 * behind - textContent would otherwise show them literally.
+		 */
+		$price = preg_replace( '#<span class="screen-reader-text">.*?</span>#s', '', (string) $product->get_price_html() );
+		$price = trim( html_entity_decode( wp_strip_all_tags( $price ), ENT_QUOTES, 'UTF-8' ) );
+		$meta  = array_filter(
+			array(
+				sr_first_term_name( $product->get_id(), 'sr_collection' ),
+				sr_first_term_name( $product->get_id(), 'product_cat' ),
+			)
+		);
+
+		$results[] = array(
+			'id'    => $product->get_id(),
+			'title' => $product->get_name(),
+			'url'   => $product->get_permalink(),
+			'image' => (string) wp_get_attachment_image_url( $product->get_image_id(), 'woocommerce_thumbnail' ),
+			'meta'  => implode( ' · ', $meta ),
+			// Short description where the shop owner wrote one, the full
+			// description otherwise, so a card is never left with a bare title.
+			'blurb' => wp_html_excerpt(
+				wp_strip_all_tags( '' !== trim( $product->get_short_description() ) ? $product->get_short_description() : $product->get_description() ),
+				110,
+				'…'
+			),
+			'price' => '' !== $price ? $price : __( 'Price on inquiry', 'samina-rasul' ),
+		);
+	}
+
+	wp_reset_postdata();
+
+	return new WP_REST_Response(
+		array(
+			'query'   => $query_string,
+			'results' => $results,
+		)
+	);
+}
+
+add_action( 'rest_api_init', function () {
+	register_rest_route(
+		'samina/v1',
+		'/search',
+		array(
+			'methods'             => WP_REST_Server::READABLE,
+			'permission_callback' => '__return_true',
+			'callback'            => 'sr_rest_search',
+			'args'                => array(
+				'q'   => array(
+					'type'              => 'string',
+					'default'           => '',
+					'sanitize_callback' => 'sanitize_text_field',
+				),
+				'ids' => array(
+					'type'    => 'array',
+					'default' => array(),
+					'items'   => array( 'type' => 'integer' ),
+				),
+			),
+		)
 	);
 } );
+
+/**
+ * The search panel itself. Printed on every page (including cart and checkout,
+ * where the animation bundle is deliberately skipped), which is why its script
+ * is a standalone file with no dependencies.
+ */
+function sr_search_panel() {
+	if ( ! class_exists( 'WooCommerce' ) ) {
+		return;
+	}
+	?>
+	<div class="sr-search" id="sr-search" hidden data-sr-search-endpoint="<?php echo esc_url( rest_url( 'samina/v1/search' ) ); ?>">
+		<div class="sr-search__backdrop" data-sr-search-close></div>
+		<div class="sr-search__panel" role="dialog" aria-modal="true" aria-labelledby="sr-search-title">
+			<button type="button" class="sr-search__close" data-sr-search-close aria-label="<?php esc_attr_e( 'Close search', 'samina-rasul' ); ?>">
+				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+			</button>
+			<div class="sr-search__inner">
+				<h2 class="sr-search__title" id="sr-search-title"><?php esc_html_e( 'Search Couture', 'samina-rasul' ); ?></h2>
+				<p class="sr-search__lede"><?php esc_html_e( 'Find formals and bridals by article code, collection, or style.', 'samina-rasul' ); ?></p>
+				<form class="sr-search__form" role="search" method="get" action="<?php echo esc_url( home_url( '/' ) ); ?>">
+					<label class="screen-reader-text" for="sr-search-field"><?php esc_html_e( 'Search products', 'samina-rasul' ); ?></label>
+					<input type="search" id="sr-search-field" name="s" value="" autocomplete="off"
+						placeholder="<?php esc_attr_e( 'Search DK-001, Ujala, bridal, organza…', 'samina-rasul' ); ?>">
+					<input type="hidden" name="post_type" value="product">
+				</form>
+				<div class="sr-search__results" data-sr-search-results aria-live="polite" aria-busy="false"></div>
+				<p class="sr-search__status" data-sr-search-status hidden></p>
+			</div>
+		</div>
+	</div>
+	<?php
+}
+add_action( 'wp_footer', 'sr_search_panel', 7 );
+
+/*
+ * Footer palette, fed to Storefront rather than fought with CSS.
+ *
+ * Storefront prints its Customizer colours as an inline stylesheet after the
+ * child theme's, using selectors like
+ * `.site-footer a:not(.button):not(.components-button)`. Any child rule for a
+ * footer link therefore has to out-specify a generated selector to win, which
+ * is a fight worth not having: giving Storefront the right defaults makes it
+ * generate the right CSS instead.
+ *
+ * Filtered through `storefront_setting_default_values` and not through
+ * `theme_mod_*`: Storefront registers its own `theme_mod_*` filters on `init`,
+ * i.e. after this child theme's, and at the same priority, so it would simply
+ * overwrite anything set that way. These are defaults, so a colour the client
+ * later picks in the Customizer still wins.
+ */
+add_filter( 'storefront_setting_default_values', function ( $defaults ) {
+	$defaults['storefront_footer_background_color'] = '#4a1f24';
+	$defaults['storefront_footer_text_color']       = '#d9cfc2';
+	$defaults['storefront_footer_link_color']       = '#f8f4ed';
+	$defaults['storefront_footer_heading_color']    = '#f8f4ed';
+	return $defaults;
+} );
+
+/* ---------------------------------------------------------------------------
+ * Currency
+ * ------------------------------------------------------------------------ */
+
+/**
+ * Print the currency as "PKR" rather than the ₨ ligature.
+ *
+ * The ₨ glyph is absent from both webfonts, so it fell back to a system face
+ * and rendered as a cramped, mismatched mark tight against the figures. A
+ * three-letter code is unambiguous for an international customer as well.
+ *
+ * @param string $symbol   Currency symbol.
+ * @param string $currency Currency code.
+ * @return string
+ */
+add_filter( 'woocommerce_currency_symbol', function ( $symbol, $currency ) {
+	return 'PKR' === $currency ? 'PKR' : $symbol;
+}, 10, 2 );
+
+// A non-breaking space between code and figures, and never a line break
+// between them. WooCommerce's stock left/right formats have no separator.
+add_filter( 'woocommerce_price_format', function ( $format, $position ) {
+	// %1$s is the currency, %2$s the figures; the order follows the shop's own
+	// currency-position setting rather than forcing one.
+	switch ( $position ) {
+		case 'left':
+		case 'left_space':
+			return '%1$s&nbsp;%2$s';
+		case 'right':
+		case 'right_space':
+			return '%2$s&nbsp;%1$s';
+		default:
+			return $format;
+	}
+}, 10, 2 );
+
+/* ---------------------------------------------------------------------------
+ * Single product page
+ * ------------------------------------------------------------------------ */
+
+/*
+ * Storefront extras removed from the product page.
+ *
+ * - Sticky add-to-cart: it re-renders the product image, and this theme
+ *   substitutes a full-bleed ornament placeholder for WooCommerce's grey
+ *   camera icon, so on any product without a thumbnail the bar inflated to
+ *   ~1000px pinned over the page and swallowed the scroll.
+ * - Product pagination: floats a previous/next card against each viewport
+ *   edge, which reads as stray products beside the content.
+ * - Upsells: related products at the foot of the page are enough; two
+ *   near-identical product grids in a row are not a recommendation, they are
+ *   noise.
+ *
+ * On wp_loaded because Storefront registers these from its own template-hooks
+ * file, which is included after this theme's functions.php.
+ */
+add_action( 'wp_loaded', function () {
+	remove_action( 'storefront_after_footer', 'storefront_sticky_single_add_to_cart', 999 );
+	remove_action( 'woocommerce_after_single_product_summary', 'storefront_single_product_pagination', 30 );
+	remove_action( 'woocommerce_after_single_product_summary', 'storefront_upsell_display', 15 );
+	remove_action( 'woocommerce_after_single_product_summary', 'woocommerce_upsell_display', 15 );
+
+	// Share icons are not part of this design.
+	remove_action( 'woocommerce_single_product_summary', 'woocommerce_template_single_sharing', 50 );
+
+	/*
+	 * No tab strip and no accordion under the summary. Description, the spec
+	 * table and the order terms are all stated once in the summary itself, so
+	 * the panels only repeated them; Reviews is empty on every product.
+	 */
+	remove_action( 'woocommerce_after_single_product_summary', 'woocommerce_output_product_data_tabs', 10 );
+
+	// Replaced by sr_single_price(), which stays current as choices are made.
+	remove_action( 'woocommerce_single_product_summary', 'woocommerce_template_single_price', 10 );
+
+	/*
+	 * The lead time and the payment terms both move out of the summary body.
+	 * The lead time is already the first thing the trust row states, and the
+	 * payment terms are the first thing the Order Terms accordion states, so
+	 * printing them again between the size pills and the button was the same
+	 * sentence three times in one column.
+	 */
+	remove_action( 'woocommerce_single_product_summary', 'sr_render_delivery_note', 25 );
+	remove_action( 'woocommerce_single_product_summary', 'sr_render_order_terms', 35 );
+
+	// SKU and category: the breadcrumb states the category and the specification
+	// table carries the piece's identity, so the stock meta line was noise.
+	remove_action( 'woocommerce_single_product_summary', 'woocommerce_template_single_meta', 40 );
+} );
+
+/**
+ * Save-for-later heart, beside the add-to-cart button.
+ *
+ * Deliberately local-only: the store has no wishlist page and no account-side
+ * storage, so this remembers the piece in the browser rather than pretending to
+ * a saved list that does not exist yet. Swap the two localStorage calls in
+ * sr-product.js for REST calls when that list is built.
+ */
+add_action( 'woocommerce_after_add_to_cart_button', function () {
+	global $product;
+	if ( ! $product instanceof WC_Product ) {
+		return;
+	}
+	printf(
+		'<button type="button" class="sr-save" data-sr-save="%1$d" aria-pressed="false"><span class="screen-reader-text">%2$s</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 1 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z"/></svg></button>',
+		(int) $product->get_id(),
+		esc_html__( 'Save this piece', 'samina-rasul' )
+	);
+} );
+
+/**
+ * Breadcrumb, inside the summary column rather than in a full-width band above
+ * the product.
+ *
+ * Storefront puts it in its own strip across the page, which on this layout
+ * left a line of small caps floating over the gallery with nothing beside it.
+ * Here it heads the column it belongs to, directly above the house line.
+ * Removed from Storefront's hook on product pages only - archives keep the
+ * full-width treatment their heroes are built around.
+ */
+function sr_single_breadcrumb() {
+	woocommerce_breadcrumb(
+		array(
+			'wrap_before' => '<nav class="sr-crumbs woocommerce-breadcrumb" aria-label="' . esc_attr__( 'Breadcrumb', 'samina-rasul' ) . '">',
+			'wrap_after'  => '</nav>',
+		)
+	);
+}
+add_action( 'woocommerce_single_product_summary', 'sr_single_breadcrumb', 2 );
+
+/*
+ * Breadcrumbs are reference furniture, not navigation this store needs: the
+ * catalogue is two categories deep and every page carries its own hero. They
+ * are kept only on the policy/FAQ pages, where a visitor really is reading
+ * reference material and wants a way back out. Product pages keep their own
+ * crumb, which sr_single_breadcrumb() places inside the summary column.
+ */
+add_action( 'wp', function () {
+	$is_product = function_exists( 'is_product' ) && is_product();
+
+	if ( $is_product || ! is_page( array_keys( sr_legal_pages() ) ) ) {
+		remove_action( 'storefront_before_content', 'woocommerce_breadcrumb', 10 );
+	}
+} );
+
+/*
+ * Comments are off sitewide. WooCommerce implements product reviews as
+ * comments, so the product post type has to be exempted or closing comments
+ * closes reviews with them.
+ */
+add_filter( 'comments_open', function ( $open, $post_id ) {
+	return 'product' === get_post_type( $post_id ) ? $open : false;
+}, 20, 2 );
+
+add_filter( 'pings_open', '__return_false', 20 );
+
+add_filter( 'comments_array', function ( $comments, $post_id ) {
+	return 'product' === get_post_type( $post_id ) ? $comments : array();
+}, 20, 2 );
+
+
+/**
+ * Price block: the live figure, with the catalogue range beside it.
+ *
+ * WooCommerce's own price line states a range on a variable product and then
+ * never moves, so a shopper choosing a heavier dupatta and a fabric upgrade
+ * watches "PKR 54,000 - 110,500" sit still while the real cost changes twice.
+ * This prints one figure that sr-product.js keeps current - the chosen
+ * variation plus whatever add-ons are ticked - and demotes the range to the
+ * quiet context line it should have been.
+ *
+ * Falls back to WooCommerce's rendered price html whenever there is no figure
+ * to total: that is what a bridal piece returns ("Price on inquiry", from
+ * samina-core/bridal-flow), and it must pass through untouched.
+ */
+function sr_single_price() {
+	global $product;
+	if ( ! $product instanceof WC_Product ) {
+		return;
+	}
+
+	$html = (string) $product->get_price_html();
+	$text = trim( wp_strip_all_tags( $html ) );
+	if ( '' === $text ) {
+		return;
+	}
+
+	/*
+	 * A rendered price carrying no digits means something upstream has decided
+	 * this piece is not to be priced publicly - samina-core/bridal-flow returns
+	 * "Price on inquiry" from woocommerce_get_price_html while the product
+	 * still holds a real figure underneath. Print exactly what was rendered and
+	 * go no further: reading get_price() here would put that figure on screen.
+	 */
+	if ( ! preg_match( '/\d/', $text ) ) {
+		echo '<div class="sr-price">' . wp_kses_post( $html ) . '</div>';
+		return;
+	}
+
+	/*
+	 * get_variation_price() only exists on WC_Product_Variable, so the type has
+	 * to be established before it is called - reaching for it on a simple
+	 * product is a fatal, not an empty result.
+	 */
+	if ( $product->is_type( 'variable' ) ) {
+		$min = wc_get_price_to_display( $product, array( 'price' => $product->get_variation_price( 'min', true ) ) );
+		$max = wc_get_price_to_display( $product, array( 'price' => $product->get_variation_price( 'max', true ) ) );
+	} else {
+		$min = wc_get_price_to_display( $product );
+		$max = $min;
+	}
+
+	// No usable figure - a bridal inquiry, or a product with no price set at
+	// all. Print whatever WooCommerce decided to say and leave it alone.
+	if ( ! is_numeric( $min ) || $min <= 0 ) {
+		echo '<div class="sr-price">' . wp_kses_post( $html ) . '</div>';
+		return;
+	}
+
+	/*
+	 * The figure gets an element of its own, holding nothing but the digits, so
+	 * sr-product.js can keep it current with textContent alone - no markup is
+	 * ever rebuilt from a string on the client.
+	 *
+	 * Symbol and figure are assembled through the shop's own currency-position
+	 * setting rather than forcing the symbol to the left.
+	 */
+	$symbol = '<span class="woocommerce-Price-currencySymbol">' . get_woocommerce_currency_symbol() . '</span>';
+	$figure = sprintf(
+		'<span class="sr-price__figure" data-sr-price data-sr-base="%s">%s</span>',
+		esc_attr( (string) $min ),
+		esc_html( number_format( $min, wc_get_price_decimals(), wc_get_price_decimal_separator(), wc_get_price_thousand_separator() ) )
+	);
+	$right  = in_array( get_option( 'woocommerce_currency_pos' ), array( 'right', 'right_space' ), true );
+
+	echo '<div class="sr-price">';
+	printf(
+		'<span class="sr-price__now woocommerce-Price-amount amount">%s</span>',
+		wp_kses_post( $right ? $figure . '&nbsp;' . $symbol : $symbol . '&nbsp;' . $figure )
+	);
+
+	if ( $max > $min ) {
+		printf(
+			'<span class="sr-price__range">%s</span>',
+			wp_kses_post(
+				sprintf(
+					/* translators: 1: lowest price, 2: highest price. */
+					__( 'Ranges from %1$s &ndash; %2$s', 'samina-rasul' ),
+					wc_price( $min ),
+					// Figure only: the currency has already been stated once.
+					number_format( $max, wc_get_price_decimals(), wc_get_price_decimal_separator(), wc_get_price_thousand_separator() )
+				)
+			)
+		);
+	}
+
+	echo '</div>';
+}
+add_action( 'woocommerce_single_product_summary', 'sr_single_price', 10 );
+
+/**
+ * Breadcrumb separator: a hairline rule drawn by CSS rather than the "/" glyph.
+ *
+ * Storefront's own delimiter is styled by its icon font, which this theme does
+ * not load, so the crumbs ran together with nothing legible between them.
+ */
+add_filter( 'woocommerce_breadcrumb_defaults', function ( $defaults ) {
+	$defaults['delimiter'] = '<span class="sr-crumb-sep" aria-hidden="true"></span>';
+	return $defaults;
+}, 20 );
+
+/*
+ * Storefront's handheld footer bar duplicates the account, search and cart
+ * icons this theme already puts in the header, and on a phone it sat on top of
+ * the WhatsApp button. One set of controls is enough.
+ */
+add_action( 'wp_loaded', function () {
+	remove_action( 'storefront_footer', 'storefront_handheld_footer_bar', 999 );
+} );
+
+/*
+ * WooCommerce's magnifier zoom is the zoom: it tracks the cursor, which is what
+ * a fabric close-up needs. It broke once because this theme forced
+ * `width: 100% !important` onto every gallery image and the overlay copy
+ * (.zoomImg) inherited it, so the magnified image was squashed to the column
+ * width and read as a vertical stretch. That override is now scoped to the
+ * slide image only - see style.css - and the overlay is left at its natural
+ * size, where jQuery.zoom expects it.
+ */
+
+/**
+ * Atelier note: the made-to-order promise, stated once at the point of decision
+ * rather than left for the terms accordion below the fold.
+ *
+ * Lead time comes from the product's own `_sr_delivery_time` meta, so a piece
+ * that takes longer says so; the deposit rule is the house policy and is fixed.
+ * Sits directly above the cart, which is where the commitment is made.
+ */
+function sr_atelier_note() {
+	$lead = (string) get_post_meta( get_the_ID(), '_sr_delivery_time', true );
+	$lead = '' !== trim( $lead ) ? $lead : __( '8-9 weeks', 'samina-rasul' );
+	?>
+	<aside class="sr-atelier-note">
+		<svg class="sr-atelier-note__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
+			<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><circle cx="12" cy="8" r=".6" fill="currentColor"/>
+		</svg>
+		<div class="sr-atelier-note__body">
+			<span class="sr-atelier-note__title"><?php esc_html_e( 'Atelier Note', 'samina-rasul' ); ?></span>
+			<p>
+				<?php
+				printf(
+					/* translators: 1: lead time e.g. "8-9 weeks", 2: deposit share e.g. "50% deposit". */
+					esc_html__( 'Each piece is custom-made. Please allow %1$s for delivery. Colour, fabric and size can be customised to your preference. A %2$s is required to begin production.', 'samina-rasul' ),
+					'<strong>' . esc_html( $lead ) . '</strong>',
+					'<strong>' . esc_html__( '50% deposit', 'samina-rasul' ) . '</strong>'
+				);
+				?>
+			</p>
+		</div>
+	</aside>
+	<?php
+}
+/*
+ * Directly under the cart row: the terms are read after the decision to buy,
+ * not before it. Priority 20 puts it after the save-for-later heart, which
+ * hooks the same action at 10.
+ *
+ * A bridal piece is not purchasable, so no cart form renders and that hook
+ * never fires - which left the note off the one page whose whole proposition
+ * is "made to order, 50% deposit". Priority 36 on the summary puts it in the
+ * same place there, just after the trust row's own hook at 35.
+ */
+add_action( 'woocommerce_after_add_to_cart_button', 'sr_atelier_note', 20 );
+add_action( 'woocommerce_single_product_summary', function () {
+	global $product;
+	if ( $product instanceof WC_Product && ! $product->is_purchasable() ) {
+		sr_atelier_note();
+	}
+}, 36 );
+
+/**
+ * Wrap the gallery in a plain block that owns the grid area.
+ *
+ * A sticky grid item is meant to be clamped by its grid area, but Chrome does
+ * not clamp this one - pinned at the top it ran on past the accordions and
+ * straight over the related products. Giving the column a normal block wrapper
+ * puts the sticky element inside an ordinary containing block, where the clamp
+ * is not in doubt.
+ */
+function sr_gallery_column() {
+	echo '<div class="sr-gallery-col">';
+	woocommerce_show_product_images();
+	echo '</div>';
+}
+add_action( 'wp_loaded', function () {
+	if ( ! function_exists( 'woocommerce_show_product_images' ) ) {
+		return;
+	}
+	remove_action( 'woocommerce_before_single_product_summary', 'woocommerce_show_product_images', 20 );
+	add_action( 'woocommerce_before_single_product_summary', 'sr_gallery_column', 20 );
+} );
+
+/* ---------------------------------------------------------------------------
+ * Saved items
+ *
+ * The heart on a product page writes its id to localStorage. This is where that
+ * list is read back. Deliberately client-side end to end: there is no account
+ * requirement to save a piece, so there is no server-side list to reconcile.
+ * When accounts own the list, swap the two localStorage calls in sr-product.js
+ * and the fetch below for REST calls and the page keeps working.
+ * ------------------------------------------------------------------------ */
+
+/**
+ * [sr_saved] - the saved-items grid.
+ *
+ * Renders an empty, labelled shell; sr-saved.js fills it from localStorage.
+ * The no-JS and empty states are both real markup rather than a spinner that
+ * never resolves.
+ *
+ * @return string
+ */
+function sr_saved_shortcode() {
+	ob_start();
+	?>
+	<section class="sr-saved" data-sr-saved data-sr-endpoint="<?php echo esc_url( rest_url( 'samina/v1/search' ) ); ?>">
+		<div class="sr-saved__results" data-sr-saved-results aria-live="polite"></div>
+		<p class="sr-saved__empty" data-sr-saved-empty>
+			<?php esc_html_e( 'Nothing saved yet. Tap the heart on any piece and it will wait for you here.', 'samina-rasul' ); ?>
+			<a href="<?php echo esc_url( sr_shop_url() ); ?>"><?php esc_html_e( 'Browse the collection', 'samina-rasul' ); ?></a>
+		</p>
+	</section>
+	<?php
+	return (string) ob_get_clean();
+}
+add_shortcode( 'sr_saved', 'sr_saved_shortcode' );
+
+add_action( 'wp_enqueue_scripts', function () {
+	if ( ! is_singular() || ! has_shortcode( (string) get_post_field( 'post_content', get_the_ID() ), 'sr_saved' ) ) {
+		return;
+	}
+	wp_enqueue_script(
+		'sr-saved',
+		get_stylesheet_directory_uri() . '/assets/js/sr-saved.js',
+		array(),
+		sr_asset_version( 'assets/js/sr-saved.js' ),
+		true
+	);
+	wp_localize_script(
+		'sr-saved',
+		'srSavedL10n',
+		array(
+			'remove' => __( 'Remove from saved', 'samina-rasul' ),
+			'error'  => __( 'Your saved pieces could not be loaded. Please refresh.', 'samina-rasul' ),
+		)
+	);
+}, 25 );
+
+/* ---------------------------------------------------------------------------
+ * Editorial pages (policies, FAQs)
+ *
+ * These were a plain h1 and a wall of body copy. They carry real weight for a
+ * made-to-order business - the deposit rule and the no-exchange rule are the
+ * two things a first-time customer checks - so they get a masthead, a section
+ * rhythm and, on the long ones, a contents rail.
+ * ------------------------------------------------------------------------ */
+
+/**
+ * Pages that take the editorial treatment, and the eyebrow each one carries.
+ *
+ * @return array<string,string> slug => eyebrow.
+ */
+function sr_editorial_pages() {
+	return array(
+		'privacy-policy'    => __( 'Your data', 'samina-rasul' ),
+		'shipping-policy'   => __( 'Orders &amp; delivery', 'samina-rasul' ),
+		'refund-policy'     => __( 'Returns', 'samina-rasul' ),
+		'terms-of-service'  => __( 'The agreement', 'samina-rasul' ),
+		'faqs'              => __( 'Before you order', 'samina-rasul' ),
+	);
+}
+
+add_filter( 'body_class', function ( $classes ) {
+	if ( is_page() && array_key_exists( (string) get_post_field( 'post_name', get_the_ID() ), sr_editorial_pages() ) ) {
+		$classes[] = 'sr-editorial';
+	}
+	return $classes;
+} );
+
+/**
+ * Masthead: eyebrow, title, and the date the page last changed.
+ *
+ * The date is the post's own modified date rather than a hand-typed line, so
+ * it cannot go stale the next time the client edits the copy.
+ */
+add_action( 'storefront_page_before', function () {
+	$pages = sr_editorial_pages();
+	$slug  = (string) get_post_field( 'post_name', get_the_ID() );
+	if ( ! is_page() || ! isset( $pages[ $slug ] ) ) {
+		return;
+	}
+	?>
+	<header class="sr-page-head">
+		<span class="sr-eyebrow"><?php echo wp_kses_post( $pages[ $slug ] ); ?></span>
+		<h1 class="sr-page-head__title"><?php echo esc_html( get_the_title() ); ?></h1>
+		<p class="sr-page-head__meta">
+			<?php
+			printf(
+				/* translators: %s: date this page was last edited. */
+				esc_html__( 'Last updated %s', 'samina-rasul' ),
+				esc_html( get_the_modified_date( get_option( 'date_format' ) ) )
+			);
+			?>
+		</p>
+	</header>
+	<?php
+} );
+
+/*
+ * The masthead above states the title; Storefront's page header would say it a
+ * second time. Removed on the template hook rather than filtered, because
+ * storefront_page_header() prints the title directly.
+ */
+add_action( 'wp', function () {
+	if ( ! is_page() ) {
+		return;
+	}
+	$slug = (string) get_post_field( 'post_name', get_the_ID() );
+	// Editorial pages print their own masthead; the landing pages open on a
+	// hero that already names them.
+	$own_title = array_merge( array_keys( sr_editorial_pages() ), array( 'consultations' ) );
+	if ( in_array( $slug, $own_title, true ) ) {
+		remove_action( 'storefront_page', 'storefront_page_header', 10 );
+	}
+} );
+
+/**
+ * Contents rail for the long policy pages, built from the sections already in
+ * the content. Progressive enhancement: without it the page is simply a page.
+ */
+add_action( 'wp_footer', function () {
+	$slug = (string) get_post_field( 'post_name', get_the_ID() );
+	if ( ! is_page() || ! array_key_exists( $slug, sr_editorial_pages() ) || 'faqs' === $slug ) {
+		return;
+	}
+	?>
+	<script>
+	(function () {
+		var body = document.querySelector('.sr-legal');
+		if (!body) { return; }
+		var sections = body.querySelectorAll('.sr-legal__section[id] > h2');
+		if (sections.length < 3) { return; }
+
+		var nav = document.createElement('nav');
+		nav.className = 'sr-legal__toc';
+		nav.setAttribute('aria-label', <?php echo wp_json_encode( __( 'On this page', 'samina-rasul' ) ); ?>);
+		var heading = document.createElement('span');
+		heading.className = 'sr-legal__toc-title';
+		heading.textContent = <?php echo wp_json_encode( __( 'On this page', 'samina-rasul' ) ); ?>;
+		nav.appendChild(heading);
+
+		var list = document.createElement('ol');
+		Array.prototype.forEach.call(sections, function (h2) {
+			var li = document.createElement('li');
+			var a = document.createElement('a');
+			a.href = '#' + h2.parentElement.id;
+			a.textContent = h2.textContent.replace(/^\s*\d+\.\s*/, '');
+			li.appendChild(a);
+			list.appendChild(li);
+		});
+		nav.appendChild(list);
+		body.insertBefore(nav, body.firstChild);
+		body.classList.add('sr-legal--has-toc');
+	})();
+	</script>
+	<?php
+} );
+
+/* ---------------------------------------------------------------------------
+ * Consultations landing page
+ *
+ * The footer link used to drop people straight into the Bridals archive, which
+ * answers "what does it look like" but not "how do I start". Bridal is the
+ * highest-value, longest-lead thing the house sells and it is priced on
+ * enquiry, so it earns a page whose only job is to turn interest into a first
+ * message.
+ * ------------------------------------------------------------------------ */
+
+/**
+ * WhatsApp link for a consultation, falling back to the contact page when no
+ * number is configured, so the primary call to action is never a dead link.
+ *
+ * @return string
+ */
+function sr_consultation_url() {
+	$number = function_exists( 'sr_whatsapp_number' ) ? sr_whatsapp_number() : '';
+	if ( '' === $number ) {
+		return sr_page_url( 'contact' );
+	}
+	return 'https://wa.me/' . $number . '?text=' . rawurlencode(
+		__( 'Hello Samina Rasul, I would like to book a bridal consultation.', 'samina-rasul' )
+	);
+}
+
+/**
+ * Testimonials for the consultation page.
+ *
+ * Empty by default and rendered only when filled: a bridal page carries more
+ * weight from three real names than from a wall of invented ones, and invented
+ * ones are not ours to write. Fill via WooCommerce -> Settings -> General, one
+ * per line as "Quote | Name | City".
+ *
+ * @return array<int,array{quote:string,author:string}>
+ */
+function sr_consultation_testimonials() {
+	$raw = trim( (string) get_option( 'sr_bridal_testimonials', '' ) );
+	if ( '' === $raw ) {
+		return array();
+	}
+
+	$out = array();
+	foreach ( preg_split( '/\r\n|\r|\n/', $raw ) as $line ) {
+		$line = trim( $line );
+		if ( '' === $line ) {
+			continue;
+		}
+		$parts = array_map( 'trim', explode( '|', $line ) );
+		if ( '' === $parts[0] ) {
+			continue;
+		}
+		$author = trim( implode( ' — ', array_filter( array_slice( $parts, 1 ) ) ) );
+		$out[]  = array(
+			'quote'  => $parts[0],
+			'author' => $author,
+		);
+	}
+	return $out;
+}
+
+add_filter( 'woocommerce_general_settings', function ( $settings ) {
+	$settings[] = array(
+		'title'    => __( 'Bridal testimonials', 'samina-rasul' ),
+		'desc'     => __( 'One per line: "Quote | Name | City". Leave blank to hide the section on the consultations page.', 'samina-rasul' ),
+		'id'       => 'sr_bridal_testimonials',
+		'type'     => 'textarea',
+		'default'  => '',
+		'css'      => 'height:9em;',
+		'desc_tip' => true,
+	);
+	return $settings;
+} );
+
+/**
+ * [sr_consultation] - the consultation landing page.
+ *
+ * @return string
+ */
+function sr_consultation_shortcode() {
+	$url      = sr_consultation_url();
+	$external = 0 === strpos( $url, 'https://wa.me/' );
+	$attrs    = $external ? ' target="_blank" rel="noopener noreferrer"' : '';
+	$arrow    = '<svg class="sr-btn-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M5 12h14M13 5l7 7-7 7"/></svg>';
+
+	$pillars = array(
+		array(
+			'title' => __( 'The Silhouette', 'samina-rasul' ),
+			'copy'  => __( 'We begin with the architecture of the piece. Whether it is a regal farshi gharara or a sleek modern pishwas, the silhouette has to flatter your form and suit the occasion.', 'samina-rasul' ),
+		),
+		array(
+			'title' => __( 'Fabric &amp; Handwork', 'samina-rasul' ),
+			'copy'  => __( 'From pure sheesha silk to mukesh-embellished organza. The cloth decides the zardozi, naqshi and resham it can carry — and it is the largest part of the price.', 'samina-rasul' ),
+		),
+		array(
+			'title' => __( 'Colour &amp; Timing', 'samina-rasul' ),
+			'copy'  => __( 'The palette has to hold up in your event\'s daylight or lamplight. Set against our seven to nine week making time, that is what makes a date realistic.', 'samina-rasul' ),
+		),
+	);
+
+	$steps = array(
+		array(
+			'eyebrow' => __( 'Day one', 'samina-rasul' ),
+			'title'   => __( 'The message', 'samina-rasul' ),
+			'copy'    => __( 'You reach out with the occasion, the date and any inspiration you have gathered. A WhatsApp message is enough to begin.', 'samina-rasul' ),
+		),
+		array(
+			'eyebrow' => __( 'Week one', 'samina-rasul' ),
+			'title'   => __( 'The consultation', 'samina-rasul' ),
+			'copy'    => __( 'A detailed conversation, at no charge, about silhouette, cloth, colour and the story behind the piece. You see samples of the handwork.', 'samina-rasul' ),
+		),
+		array(
+			'eyebrow' => __( 'Within days', 'samina-rasul' ),
+			'title'   => __( 'Design and quote', 'samina-rasul' ),
+			'copy'    => __( 'A design concept and a written quote against the exact piece discussed. Nothing is charged until you accept it.', 'samina-rasul' ),
+		),
+		array(
+			'eyebrow' => __( 'Weeks two to nine', 'samina-rasul' ),
+			'title'   => __( 'Cutting and handwork', 'samina-rasul' ),
+			'copy'    => __( 'A 50% advance secures your slot in the atelier and cutting begins. You are sent progress as the embellishment goes on.', 'samina-rasul' ),
+		),
+		array(
+			'eyebrow' => __( 'Before the date', 'samina-rasul' ),
+			'title'   => __( 'Fitting and delivery', 'samina-rasul' ),
+			'copy'    => __( 'Finished with a complimentary fitting adjustment, pressed, and delivered with time in hand.', 'samina-rasul' ),
+		),
+	);
+
+	$prepare = array(
+		array( __( 'The occasion date', 'samina-rasul' ), __( 'Your deadline tells us what is achievable inside the seven to nine week window.', 'samina-rasul' ) ),
+		array( __( 'Colour palette', 'samina-rasul' ), __( 'Any shades, inspiration or family heirloom you want the piece to sit beside.', 'samina-rasul' ) ),
+		array( __( 'Silhouette preference', 'samina-rasul' ), __( 'Lehnga, pishwas, gharara, or a contemporary long shirt.', 'samina-rasul' ) ),
+		array( __( 'Budget range', 'samina-rasul' ), __( 'This is what lets us recommend the right cloth and the right weight of handwork.', 'samina-rasul' ) ),
+		array( __( 'Measurements', 'samina-rasul' ), __( 'Optional. Rough figures help us picture proportion; exact sizing happens later.', 'samina-rasul' ) ),
+	);
+
+	$faqs = array(
+		array(
+			__( 'Why is a 50% advance required?', 'samina-rasul' ),
+			__( 'Every piece is made to order. The advance buys the cloth and books your slot with the artisans who will do the handwork. The balance is due before dispatch.', 'samina-rasul' ),
+		),
+		array(
+			__( 'What if I need the piece in under seven weeks?', 'samina-rasul' ),
+			__( 'Sometimes possible, depending on what is already in the atelier. Say your date in the first message and we will tell you honestly whether we can meet it.', 'samina-rasul' ),
+		),
+		array(
+			__( 'Can I change the design after paying the advance?', 'samina-rasul' ),
+			__( 'Colour shades and dupatta fabric can still move in the first week. Once cutting and handwork begin, the silhouette is fixed.', 'samina-rasul' ),
+		),
+	);
+
+	$testimonials = sr_consultation_testimonials();
+
+	$routes = array(
+		array(
+			'icon'  => '<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>',
+			'title' => __( 'Message the atelier', 'samina-rasul' ),
+			'copy'  => __( 'For quick questions and sharing inspiration. The fastest way to an answer.', 'samina-rasul' ),
+			'cta'   => __( 'Start on WhatsApp', 'samina-rasul' ),
+			'url'   => $url,
+			'ext'   => $external,
+		),
+		array(
+			'icon'  => '<rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>',
+			'title' => __( 'Write to us', 'samina-rasul' ),
+			'copy'  => __( 'Send your date, budget and references in one place and we will reply with a plan.', 'samina-rasul' ),
+			'cta'   => __( 'Go to contact', 'samina-rasul' ),
+			'url'   => sr_page_url( 'contact' ),
+			'ext'   => false,
+		),
+		array(
+			'icon'  => '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>',
+			'title' => __( 'See the bridal work', 'samina-rasul' ),
+			'copy'  => __( 'Browse finished commissions before you decide what you want yours to be.', 'samina-rasul' ),
+			'cta'   => __( 'View bridals', 'samina-rasul' ),
+			'url'   => sr_term_url( 'bridals', 'product_cat' ),
+			'ext'   => false,
+		),
+	);
+
+	ob_start();
+	?>
+	<div class="sr-consultation">
+
+		<section class="sr-cs-hero">
+			<div class="sr-cs-hero__inner">
+				<p class="sr-cs-eyebrow" data-sr-reveal><?php esc_html_e( 'Samina Rasul Bridal Atelier', 'samina-rasul' ); ?></p>
+				<?php
+				/*
+				 * h1, not h2. Storefront's page header is removed for this page
+				 * (see the $own_title list above), so with an h2 here the
+				 * consultations landing page - the entry point for the highest
+				 * value thing the house sells - shipped with no h1 at all.
+				 */
+				?>
+				<h1 class="sr-cs-hero__title" data-sr-reveal><?php echo wp_kses_post( __( 'A piece made for <em>one occasion,</em> and <em>one person.</em>', 'samina-rasul' ) ); ?></h1>
+				<div class="sr-cs-hero__actions" data-sr-reveal>
+					<a class="sr-cs-btn" href="#sr-cs-book"><?php esc_html_e( 'Begin your journey', 'samina-rasul' ); ?><?php echo $arrow; // phpcs:ignore WordPress.Security.EscapeOutput -- static inline SVG. ?></a>
+					<a class="sr-cs-btn sr-cs-btn--ghost" href="<?php echo esc_url( sr_term_url( 'bridals', 'product_cat' ) ); ?>"><?php esc_html_e( 'View the collection', 'samina-rasul' ); ?></a>
+				</div>
+				<ul class="sr-cs-hero__badges" data-sr-reveal>
+					<li><span class="sr-cs-badge__title"><?php esc_html_e( 'No consultation fee', 'samina-rasul' ); ?></span><span class="sr-cs-badge__desc"><?php esc_html_e( 'Initial design discussion', 'samina-rasul' ); ?></span></li>
+					<li><span class="sr-cs-badge__title"><?php esc_html_e( '7–9 weeks', 'samina-rasul' ); ?></span><span class="sr-cs-badge__desc"><?php esc_html_e( 'Average delivery time', 'samina-rasul' ); ?></span></li>
+					<li><span class="sr-cs-badge__title"><?php esc_html_e( '50% advance', 'samina-rasul' ); ?></span><span class="sr-cs-badge__desc"><?php esc_html_e( 'To begin hand-crafting', 'samina-rasul' ); ?></span></li>
+				</ul>
+			</div>
+		</section>
+
+		<section class="sr-cs-philosophy">
+			<div class="sr-cs-philosophy__inner">
+				<div class="sr-cs-phil__left" data-sr-reveal>
+					<h2><?php echo wp_kses_post( __( 'Three things <em>settle</em> the piece.', 'samina-rasul' ) ); ?></h2>
+					<p><?php esc_html_e( 'Before a single thread is drawn we settle the foundation. Your first consultation exists to understand these three, and nothing is quoted until they are agreed.', 'samina-rasul' ); ?></p>
+					<a class="sr-cs-btn sr-cs-btn--outline" href="#sr-cs-book"><?php esc_html_e( 'Book a discussion', 'samina-rasul' ); ?></a>
+				</div>
+				<div class="sr-cs-phil__right">
+					<?php foreach ( $pillars as $i => $pillar ) : ?>
+						<div class="sr-cs-phil__item" data-sr-reveal>
+							<span class="sr-cs-phil__num" aria-hidden="true"><?php echo esc_html( sprintf( '%02d', $i + 1 ) ); ?></span>
+							<div>
+								<h3><?php echo wp_kses_post( $pillar['title'] ); ?></h3>
+								<p><?php echo esc_html( $pillar['copy'] ); ?></p>
+							</div>
+						</div>
+					<?php endforeach; ?>
+				</div>
+			</div>
+		</section>
+
+		<section class="sr-section sr-process sr-cs-process">
+			<div class="sr-section__inner">
+				<div class="sr-section__intro" data-sr-reveal>
+					<span class="sr-eyebrow"><?php esc_html_e( 'The atelier process', 'samina-rasul' ); ?></span>
+					<h2><?php esc_html_e( 'From the first message to the final fitting', 'samina-rasul' ); ?></h2>
+				</div>
+				<ol class="sr-timeline">
+					<?php foreach ( $steps as $i => $step ) : ?>
+						<li class="sr-timeline__step">
+							<span class="sr-timeline__marker" aria-hidden="true"></span>
+							<div class="sr-timeline__card">
+								<div class="sr-timeline__heading">
+									<span class="sr-process__num" aria-hidden="true"><?php echo esc_html( sprintf( '%02d', $i + 1 ) ); ?></span>
+									<span class="sr-timeline__eyebrow"><?php echo esc_html( $step['eyebrow'] ); ?></span>
+								</div>
+								<h3><?php echo esc_html( $step['title'] ); ?></h3>
+								<p><?php echo esc_html( $step['copy'] ); ?></p>
+							</div>
+						</li>
+					<?php endforeach; ?>
+				</ol>
+			</div>
+		</section>
+
+		<?php if ( $testimonials ) : ?>
+			<section class="sr-cs-testimonials">
+				<h2 data-sr-reveal><?php echo wp_kses_post( __( 'Cherished by our <em>brides</em>', 'samina-rasul' ) ); ?></h2>
+				<div class="sr-cs-test__grid">
+					<?php foreach ( $testimonials as $t ) : ?>
+						<figure class="sr-cs-test__card" data-sr-reveal>
+							<blockquote><?php echo esc_html( $t['quote'] ); ?></blockquote>
+							<?php if ( '' !== $t['author'] ) : ?>
+								<figcaption><?php echo esc_html( $t['author'] ); ?></figcaption>
+							<?php endif; ?>
+						</figure>
+					<?php endforeach; ?>
+				</div>
+			</section>
+		<?php endif; ?>
+
+		<section class="sr-cs-prepare">
+			<div class="sr-cs-prepare__inner">
+				<div data-sr-reveal>
+					<h2><?php echo wp_kses_post( __( 'Five things that make the <em>first conversation</em> useful.', 'samina-rasul' ) ); ?></h2>
+				</div>
+				<ol class="sr-cs-prep__list" data-sr-reveal>
+					<?php foreach ( $prepare as $item ) : ?>
+						<li>
+							<div>
+								<h4><?php echo esc_html( $item[0] ); ?></h4>
+								<p><?php echo esc_html( $item[1] ); ?></p>
+							</div>
+						</li>
+					<?php endforeach; ?>
+				</ol>
+			</div>
+		</section>
+
+		<section class="sr-cs-book" id="sr-cs-book">
+			<div class="sr-cs-book__header" data-sr-reveal>
+				<h2><?php esc_html_e( 'Begin your consultation', 'samina-rasul' ); ?></h2>
+				<p><?php esc_html_e( 'Choose whichever feels most comfortable. We typically reply within 24 hours.', 'samina-rasul' ); ?></p>
+			</div>
+			<div class="sr-cs-book__grid">
+				<?php foreach ( $routes as $route ) : ?>
+					<a class="sr-cs-book__card" href="<?php echo esc_url( $route['url'] ); ?>"<?php echo $route['ext'] ? ' target="_blank" rel="noopener noreferrer"' : ''; ?> data-sr-reveal>
+						<svg class="sr-cs-book__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><?php echo $route['icon']; // phpcs:ignore WordPress.Security.EscapeOutput -- static inline SVG paths. ?></svg>
+						<h3><?php echo esc_html( $route['title'] ); ?></h3>
+						<p><?php echo esc_html( $route['copy'] ); ?></p>
+						<span class="sr-cs-book__link"><?php echo esc_html( $route['cta'] ); ?></span>
+					</a>
+				<?php endforeach; ?>
+			</div>
+		</section>
+
+		<section class="sr-cs-faq">
+			<h2 data-sr-reveal><?php esc_html_e( 'Frequently asked questions', 'samina-rasul' ); ?></h2>
+			<?php foreach ( $faqs as $faq ) : ?>
+				<details class="sr-faq sr-cs-faq__item">
+					<summary class="sr-faq__q"><span><?php echo esc_html( $faq[0] ); ?></span><i class="sr-faq__mark" aria-hidden="true"></i></summary>
+					<div class="sr-faq__a"><p><?php echo esc_html( $faq[1] ); ?></p></div>
+				</details>
+			<?php endforeach; ?>
+			<p class="sr-cs-faq__more" data-sr-reveal>
+				<?php esc_html_e( 'More questions about ordering, delivery and returns:', 'samina-rasul' ); ?>
+				<a href="<?php echo esc_url( sr_page_url( 'faqs' ) ); ?>"><?php esc_html_e( 'read the full FAQs', 'samina-rasul' ); ?></a>
+			</p>
+		</section>
+
+		<section class="sr-cs-final">
+			<span class="sr-cs-final__ghost" aria-hidden="true"><?php esc_html_e( 'BRIDAL', 'samina-rasul' ); ?></span>
+			<div class="sr-cs-final__inner" data-sr-reveal>
+				<h2><?php echo wp_kses_post( __( 'Tell us the date.<br><em>We will tell you what is possible.</em>', 'samina-rasul' ) ); ?></h2>
+				<a class="sr-cs-btn sr-cs-btn--gold" href="<?php echo esc_url( $url ); ?>"<?php echo $attrs; // phpcs:ignore WordPress.Security.EscapeOutput -- static attribute string. ?>><?php esc_html_e( 'Start a consultation', 'samina-rasul' ); ?><?php echo $arrow; // phpcs:ignore WordPress.Security.EscapeOutput -- static inline SVG. ?></a>
+			</div>
+		</section>
+
+	</div>
+	<?php
+	return (string) ob_get_clean();
+}
+add_shortcode( 'sr_consultation', 'sr_consultation_shortcode' );

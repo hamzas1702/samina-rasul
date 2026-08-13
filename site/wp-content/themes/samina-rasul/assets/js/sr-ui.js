@@ -56,12 +56,20 @@
 	var smoothScrollOptIn = docEl.getAttribute('data-sr-smooth') === 'true';
 	if (!reduceMotion && smoothScrollOptIn && finePointer && typeof Lenis !== 'undefined') {
 		lenis = new Lenis({
-			duration: 0.75,
+			/* A touch more inertia for a smoother glide, while keeping the page
+			 * responsive instead of giving it the exaggerated showroom feel. */
+			lerp: 0.075,
 			easing: function (t) { return Math.min(1, 1.001 - Math.pow(2, -10 * t)); }
 		});
 		lenis.on('scroll', ScrollTrigger.update);
 		gsap.ticker.add(function (time) { lenis.raf(time * 1000); });
 		gsap.ticker.lagSmoothing(500, 16);
+
+		/* Overlays (the search panel) ask for the page behind them to hold
+		 * still; overflow:hidden alone does not stop Lenis, which translates
+		 * the page itself. */
+		document.addEventListener('sr:lock', function () { lenis.stop(); });
+		document.addEventListener('sr:unlock', function () { lenis.start(); });
 	}
 
 	/* ---------------- Sticky header: shrink + hide on scroll down ---------------- */
@@ -255,16 +263,17 @@
 		});
 	}
 
-	/* ---------------- Atelier rail: intentional horizontal browse controls ---------------- */
-	var productRail = document.querySelector('[data-sr-product-rail]');
-	if (productRail) {
-		document.querySelectorAll('[data-sr-product-scroll]').forEach(function (control) {
-			control.addEventListener('click', function () {
-				var direction = control.getAttribute('data-sr-product-scroll') === 'next' ? 1 : -1;
-				productRail.scrollBy({ left: direction * Math.max(productRail.clientWidth * 0.72, 320), behavior: 'smooth' });
-			});
+	/* ---------------- Product rails: intentional horizontal browse controls ----------------
+	 * The page carries several rails, so a control drives the rail whose
+	 * data-sr-product-rail key matches its own - not the first one on the page. */
+	document.querySelectorAll('[data-sr-product-scroll]').forEach(function (control) {
+		var rail = document.querySelector('[data-sr-product-rail="' + control.getAttribute('data-sr-rail') + '"]');
+		if (!rail) { return; }
+		control.addEventListener('click', function () {
+			var direction = control.getAttribute('data-sr-product-scroll') === 'next' ? 1 : -1;
+			rail.scrollBy({ left: direction * Math.max(rail.clientWidth * 0.72, 320), behavior: 'smooth' });
 		});
-	}
+	});
 
 	/* ---------------- Marquee (scroll-velocity aware) ---------------- */
 	var marqueeTrack = document.querySelector('.sr-marquee__track');
@@ -293,15 +302,6 @@
 		});
 	});
 
-	/* ---------------- Footer wordmark sweep ---------------- */
-	var wordmark = document.querySelector('.sr-footer-wordmark span');
-	if (wordmark) {
-		gsap.fromTo(wordmark, { xPercent: 4 }, {
-			xPercent: -4, ease: 'none',
-			scrollTrigger: { trigger: '.sr-footer-wordmark', start: 'top bottom', end: 'bottom top', scrub: 1 }
-		});
-	}
-
 	/* ---------------- Pointer-only micro-interactions ---------------- */
 	if (!finePointer) { return; }
 
@@ -319,20 +319,28 @@
 			ringX(e.clientX); ringY(e.clientY); dotX(e.clientX); dotY(e.clientY);
 		}, { passive: true });
 
-		var hoverSelector = 'a, button, input[type="submit"], .sr-tile, li.product, [role="button"], select, label.sr-addon-option';
+		var hoverSelector = 'a, button, input[type="submit"], li.product, [role="button"], select, label.sr-addon-option';
+		/* Controls keep the system cursor. A button already says it is a button,
+		 * and a "View" badge over an Add to cart button is a lie about where the
+		 * click goes. */
+		var nativeSelector = '.button, button, input[type="submit"], select, .quantity input';
 		document.addEventListener('mouseover', function (e) {
 			var t = e.target.closest(hoverSelector);
 			if (!t) { return; }
+			var onControl = !!e.target.closest(nativeSelector);
 			var label = '';
 			var card = e.target.closest('li.product');
-			if (card) { label = card.querySelector('.sr-whatsapp-inquire') ? 'Inquire' : 'View'; }
+			// Only the card's own linked area carries the badge, which is the
+			// same area that is actually clickable.
+			if (card && !onControl) { label = card.querySelector('.sr-whatsapp-inquire') ? 'Inquire' : 'View'; }
 			ring.setAttribute('data-label', label);
+			docEl.classList.toggle('sr-cursor-native', onControl);
 			docEl.classList.add('sr-cursor-hover');
 			docEl.classList.toggle('sr-cursor-label', !!label);
 		});
 		document.addEventListener('mouseout', function (e) {
 			if (e.target.closest(hoverSelector)) {
-				docEl.classList.remove('sr-cursor-hover', 'sr-cursor-label');
+				docEl.classList.remove('sr-cursor-hover', 'sr-cursor-label', 'sr-cursor-native');
 			}
 		});
 		document.addEventListener('mouseleave', function () { docEl.classList.add('sr-cursor-gone'); });

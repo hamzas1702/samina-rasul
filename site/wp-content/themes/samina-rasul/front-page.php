@@ -15,18 +15,14 @@
 
 get_header();
 
-/**
- * Homepage imagery. Each entry resolves through sr_image_url(), which prefers
- * the theme's assets/images/ and falls back to wp-content/uploads/, so any of
- * these can be replaced by dropping a file in either place. A missing file
- * returns '' and the template renders its CSS placeholder instead.
+/*
+ * Homepage imagery. The hero, Formals and Bridals images are client-editable
+ * and resolve through sr_home_image() at the point of use (Customizer →
+ * Homepage Content). The Story portrait is not exposed, so it still resolves
+ * through sr_image_url(), which prefers the theme's assets/images/ and falls
+ * back to wp-content/uploads/. Either way a missing file yields '' and the
+ * template renders its CSS placeholder instead of a broken <img>.
  */
-$sr_img = array(
-	'hero'    => sr_image_url( 'hero-section.jpg' ),
-	'story'   => sr_image_url( '2026/07/DSC08661.jpg' ),
-	'formals' => sr_image_url( '2026/07/DSC08885.jpg' ),
-	'bridals' => sr_image_url( '2026/07/DSC08885-1.jpg' ),
-);
 
 $sr_ornament = sr_ornament_svg();
 
@@ -112,27 +108,40 @@ $sr_pillar_marks = array(
 <main id="main" class="site-main sr-home">
 
 	<!-- 01 · Arrival: full-bleed image hero, text centred over a scrim. -->
-	<?php $sr_hero_image = $sr_img['hero']; ?>
+	<?php
+	// Decorative: the section sits behind a scrim and is aria-hidden, so alt
+	// stays empty. Eager + high priority because this is the LCP element.
+	$sr_hero_image = sr_home_image(
+		'sr_home_hero_image',
+		array(
+			'class'         => 'sr-hero__img',
+			'alt'           => '',
+			'loading'       => 'eager',
+			'fetchpriority' => 'high',
+			'decoding'      => 'async',
+		)
+	);
+	?>
 	<section class="sr-hero sr-hero--full<?php echo $sr_hero_image ? ' sr-hero--photo' : ''; ?>">
 		<div class="sr-hero__bg sr-ph--deep" data-sr-parallax="6" aria-hidden="true">
 			<?php if ( $sr_hero_image ) : ?>
-				<img class="sr-hero__img" src="<?php echo esc_url( $sr_hero_image ); ?>" alt="" fetchpriority="high" decoding="async">
+				<?php echo $sr_hero_image; // phpcs:ignore WordPress.Security.EscapeOutput -- escaped in sr_home_image(). ?>
 			<?php else : ?>
 				<?php echo $sr_ornament; // phpcs:ignore WordPress.Security.EscapeOutput ?>
 			<?php endif; ?>
 		</div>
 		<div class="sr-hero__scrim" aria-hidden="true"></div>
 		<div class="sr-hero__content">
-			<span class="sr-eyebrow"><?php esc_html_e( 'Hand embellished · Made to order', 'samina-rasul' ); ?></span>
+			<span class="sr-eyebrow"><?php echo esc_html( sr_home_text( 'sr_home_hero_eyebrow' ) ); ?></span>
 			<h1>
-				<span class="sr-line"><span class="sr-line-inner"><?php esc_html_e( 'Couture that', 'samina-rasul' ); ?></span></span>
-				<span class="sr-line"><span class="sr-line-inner"><?php esc_html_e( 'remembers the hand', 'samina-rasul' ); ?></span></span>
-				<span class="sr-line"><span class="sr-line-inner"><em><?php esc_html_e( 'that made it', 'samina-rasul' ); ?></em></span></span>
+				<span class="sr-line"><span class="sr-line-inner"><?php echo esc_html( sr_home_text( 'sr_home_hero_line_1' ) ); ?></span></span>
+				<span class="sr-line"><span class="sr-line-inner"><?php echo esc_html( sr_home_text( 'sr_home_hero_line_2' ) ); ?></span></span>
+				<span class="sr-line"><span class="sr-line-inner"><em><?php echo esc_html( sr_home_text( 'sr_home_hero_line_3' ) ); ?></em></span></span>
 			</h1>
-			<p><?php esc_html_e( 'Formals and bridals from the house of Samina Rasul, with zardozi, mukesh and resham worked by hand, cut to your measure and finished to order.', 'samina-rasul' ); ?></p>
+			<p><?php echo esc_html( sr_home_text( 'sr_home_hero_body' ) ); ?></p>
 			<div class="sr-hero-actions">
-				<a class="button" href="<?php echo esc_url( sr_term_url( 'formals', 'product_cat' ) ); ?>"><span><?php esc_html_e( 'Shop Formals', 'samina-rasul' ); ?></span></a>
-				<a class="button sr-ghost" href="<?php echo esc_url( sr_term_url( 'bridals', 'product_cat' ) ); ?>"><span><?php esc_html_e( 'Explore Bridals', 'samina-rasul' ); ?></span></a>
+				<a class="button" href="<?php echo esc_url( sr_term_url( 'formals', 'product_cat' ) ); ?>"><span><?php echo esc_html( sr_home_text( 'sr_home_hero_cta_primary' ) ); ?></span></a>
+				<a class="button sr-ghost" href="<?php echo esc_url( sr_term_url( 'bridals', 'product_cat' ) ); ?>"><span><?php echo esc_html( sr_home_text( 'sr_home_hero_cta_secondary' ) ); ?></span></a>
 			</div>
 			<?php if ( ! $sr_hero_image ) : ?>
 				<span class="sr-hero__caption"><?php esc_html_e( 'Campaign photography in production', 'samina-rasul' ); ?></span>
@@ -151,34 +160,27 @@ $sr_pillar_marks = array(
 	</div>
 
 	<!-- 03 · Latest pieces, in a browsable editorial rail. -->
-	<section class="sr-section sr-atelier">
-		<div class="sr-section__inner">
-			<div class="sr-rowhead" data-sr-reveal>
-				<div>
-					<span class="sr-eyebrow"><?php esc_html_e( 'Just arrived', 'samina-rasul' ); ?></span>
-					<h2><span class="sr-rowhead__arrow" aria-hidden="true">→</span> <?php esc_html_e( 'New from the atelier', 'samina-rasul' ); ?></h2>
-				</div>
-				<div class="sr-atelier__actions">
-					<div class="sr-rail-controls" aria-label="<?php esc_attr_e( 'Browse new pieces', 'samina-rasul' ); ?>">
-						<button type="button" class="sr-rail-control" data-sr-product-scroll="prev" aria-label="<?php esc_attr_e( 'Show previous pieces', 'samina-rasul' ); ?>">←</button>
-						<button type="button" class="sr-rail-control" data-sr-product-scroll="next" aria-label="<?php esc_attr_e( 'Show next pieces', 'samina-rasul' ); ?>">→</button>
-					</div>
-					<a class="button sr-ghost" href="<?php echo esc_url( sr_shop_url() ); ?>"><span><?php esc_html_e( 'View all pieces', 'samina-rasul' ); ?></span></a>
-				</div>
-			</div>
-			<div class="sr-product-rail" data-sr-product-rail>
-				<?php echo do_shortcode( '[products limit="8" columns="4" orderby="date"]' ); ?>
-			</div>
-		</div>
-	</section>
+	<?php
+	sr_product_rail(
+		array(
+			'key'       => 'new',
+			'class'     => 'sr-atelier',
+			'eyebrow'   => sr_home_text( 'sr_home_atelier_eyebrow' ),
+			'heading'   => sr_home_text( 'sr_home_atelier_heading' ),
+			'atts'      => array( 'limit' => 8, 'columns' => 4, 'orderby' => 'date' ),
+			'cta_url'   => sr_shop_url(),
+			'cta_label' => __( 'View all pieces', 'samina-rasul' ),
+		)
+	);
+	?>
 
 	<!-- 02b · Featured Collections -->
 	<section class="sr-section sr-section--cream">
 		<div class="sr-section__inner">
 			<div class="sr-section__intro" data-sr-reveal>
-				<span class="sr-eyebrow"><?php esc_html_e( 'Explore the house', 'samina-rasul' ); ?></span>
-				<h2><?php echo wp_kses_post( __( 'Featured <em>Collections</em>', 'samina-rasul' ) ); ?></h2>
-				<p><?php esc_html_e( 'Discover our exquisite range of handcrafted couture, where every stitch tells a story of elegance and tradition.', 'samina-rasul' ); ?></p>
+				<span class="sr-eyebrow"><?php echo esc_html( sr_home_text( 'sr_home_collections_eyebrow' ) ); ?></span>
+				<h2><?php echo wp_kses_post( sr_home_text( 'sr_home_collections_heading' ) ); ?></h2>
+				<p><?php echo esc_html( sr_home_text( 'sr_home_collections_body' ) ); ?></p>
 			</div>
 			<nav class="sr-shop-gateway__grid sr-shop-gateway__grid--3" aria-label="<?php esc_attr_e( 'Shop the Samina Rasul house', 'samina-rasul' ); ?>">
 				<a class="sr-route sr-route--media sr-route--formal" href="<?php echo esc_url( sr_term_url( 'formals', 'product_cat' ) ); ?>" data-sr-reveal>
@@ -186,30 +188,48 @@ $sr_pillar_marks = array(
 						<?php echo sr_term_card_media( 'formals', 'product_cat', 'warm' ); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped in helper. ?>
 						<span class="sr-route__art" data-sr-parallax="4"><?php echo $sr_mukesh_motif; // phpcs:ignore WordPress.Security.EscapeOutput ?></span>
 					</div>
-					<div class="sr-route__copy"><span class="sr-route__index">01 · <?php esc_html_e( 'Ready to order', 'samina-rasul' ); ?></span><h3><?php esc_html_e( 'Formal Collection', 'samina-rasul' ); ?></h3><p><?php esc_html_e( 'Sophisticated designs for special occasions, cut and embellished to order.', 'samina-rasul' ); ?></p><span class="sr-route__cta"><?php esc_html_e( 'View Collection', 'samina-rasul' ); ?> <b aria-hidden="true">→</b></span></div>
+					<div class="sr-route__copy"><span class="sr-route__index">01 · <?php echo esc_html( sr_home_text( 'sr_home_tile_1_badge' ) ); ?></span><h3><?php echo esc_html( sr_home_text( 'sr_home_tile_1_title' ) ); ?></h3><p><?php echo esc_html( sr_home_text( 'sr_home_tile_1_body' ) ); ?></p><span class="sr-route__cta"><?php echo esc_html( sr_home_text( 'sr_home_tile_1_cta' ) ); ?> <b aria-hidden="true">→</b></span></div>
 				</a>
 				<a class="sr-route sr-route--media sr-route--bridal" href="<?php echo esc_url( sr_term_url( 'bridals', 'product_cat' ) ); ?>" data-sr-reveal>
 					<div class="sr-route__media">
 						<?php echo sr_term_card_media( 'bridals', 'product_cat', 'deep' ); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped in helper. ?>
 						<span class="sr-route__art" data-sr-parallax="4"><?php echo $sr_zardozi_motif; // phpcs:ignore WordPress.Security.EscapeOutput ?></span>
 					</div>
-					<div class="sr-route__copy"><span class="sr-route__index">02 · <?php esc_html_e( 'By consultation', 'samina-rasul' ); ?></span><h3><?php esc_html_e( 'Bridal Couture', 'samina-rasul' ); ?></h3><p><?php esc_html_e( 'Breathtaking bridal masterpieces blending tradition with contemporary elegance.', 'samina-rasul' ); ?></p><span class="sr-route__cta"><?php esc_html_e( 'View Collection', 'samina-rasul' ); ?> <b aria-hidden="true">→</b></span></div>
+					<div class="sr-route__copy"><span class="sr-route__index">02 · <?php echo esc_html( sr_home_text( 'sr_home_tile_2_badge' ) ); ?></span><h3><?php echo esc_html( sr_home_text( 'sr_home_tile_2_title' ) ); ?></h3><p><?php echo esc_html( sr_home_text( 'sr_home_tile_2_body' ) ); ?></p><span class="sr-route__cta"><?php echo esc_html( sr_home_text( 'sr_home_tile_2_cta' ) ); ?> <b aria-hidden="true">→</b></span></div>
 				</a>
 				<a class="sr-route sr-route--media sr-route--dhanak" href="<?php echo esc_url( sr_term_url( 'dhanak', 'sr_collection' ) ); ?>" data-sr-reveal>
 					<div class="sr-route__media">
 						<?php echo sr_term_card_media( 'dhanak', 'sr_collection', 'warm' ); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped in helper. ?>
 						<span class="sr-route__art" data-sr-parallax="4"><?php echo $sr_gota_motif; // phpcs:ignore WordPress.Security.EscapeOutput ?></span>
 					</div>
-					<div class="sr-route__copy"><span class="sr-route__index">03 · <?php esc_html_e( 'Collection', 'samina-rasul' ); ?></span><h3><?php esc_html_e( 'Dhanak', 'samina-rasul' ); ?></h3><p><?php esc_html_e( 'Refined ready pieces with signature Samina Rasul craftsmanship.', 'samina-rasul' ); ?></p><span class="sr-route__cta"><?php esc_html_e( 'View Collection', 'samina-rasul' ); ?> <b aria-hidden="true">→</b></span></div>
+					<div class="sr-route__copy"><span class="sr-route__index">03 · <?php echo esc_html( sr_home_text( 'sr_home_tile_3_badge' ) ); ?></span><h3><?php echo esc_html( sr_home_text( 'sr_home_tile_3_title' ) ); ?></h3><p><?php echo esc_html( sr_home_text( 'sr_home_tile_3_body' ) ); ?></p><span class="sr-route__cta"><?php echo esc_html( sr_home_text( 'sr_home_tile_3_cta' ) ); ?> <b aria-hidden="true">→</b></span></div>
 				</a>
 			</nav>
 		</div>
 	</section>
 
+	<!-- 03b · The Formals edit: the everyday-luxury path, shoppable in place. -->
+	<?php
+	sr_product_rail(
+		array(
+			'key'       => 'formals',
+			'class'     => 'sr-rail--formals',
+			// The house's main revenue category gets the full width of the
+			// content column, laid out rather than scrolled.
+			'layout'    => 'grid',
+			'eyebrow'   => __( 'Ready to order', 'samina-rasul' ),
+			'heading'   => __( 'The Formals edit', 'samina-rasul' ),
+			'atts'      => array( 'limit' => 8, 'columns' => 4, 'category' => 'formals', 'orderby' => 'date' ),
+			'cta_url'   => sr_term_url( 'formals', 'product_cat' ),
+			'cta_label' => __( 'Shop all Formals', 'samina-rasul' ),
+		)
+	);
+	?>
+
 	<!-- 02a · Our Story: framed portrait with the display type breaking over it,
 	     opposite a hairline-ruled list of the three pillars. -->
 	<?php
-	$sr_story_image  = $sr_img['story'];
+	$sr_story_image  = sr_image_url( '2026/07/DSC08661.jpg' );
 	$sr_story_alt    = __( 'A Samina Rasul piece, hand embellished in the atelier', 'samina-rasul' );
 	$sr_story_pillars = array(
 		array(
@@ -261,7 +281,7 @@ $sr_pillar_marks = array(
 					<?php endforeach; ?>
 				</ul>
 
-				<a class="sr-story__more" href="<?php echo esc_url( home_url( '/about-us/' ) ); ?>" data-sr-reveal>
+				<a class="sr-story__more" href="<?php echo esc_url( sr_page_url( 'about-us' ) ); ?>" data-sr-reveal>
 					<span><?php esc_html_e( 'Learn more about us', 'samina-rasul' ); ?></span>
 					<b aria-hidden="true">→</b>
 				</a>
@@ -284,8 +304,19 @@ $sr_pillar_marks = array(
 	<!-- 05 · The first path: Formals -->
 	<section class="sr-split">
 		<div class="sr-split__visual">
-			<?php if ( $sr_img['formals'] ) : ?>
-				<img class="sr-split__img" src="<?php echo esc_url( $sr_img['formals'] ); ?>" alt="<?php esc_attr_e( 'A Samina Rasul formal piece', 'samina-rasul' ); ?>" loading="lazy" decoding="async">
+			<?php
+			$sr_formals_image = sr_home_image(
+				'sr_home_formals_image',
+				array(
+					'class'    => 'sr-split__img',
+					'alt'      => sr_home_text( 'sr_home_formals_image_alt' ),
+					'loading'  => 'lazy',
+					'decoding' => 'async',
+				)
+			);
+			?>
+			<?php if ( $sr_formals_image ) : ?>
+				<?php echo $sr_formals_image; // phpcs:ignore WordPress.Security.EscapeOutput -- escaped in sr_home_image(). ?>
 			<?php else : ?>
 				<div class="sr-ph sr-ph--warm sr-ph--tall" data-sr-parallax="9">
 					<?php echo $sr_ornament; // phpcs:ignore WordPress.Security.EscapeOutput ?>
@@ -294,10 +325,10 @@ $sr_pillar_marks = array(
 			<?php endif; ?>
 		</div>
 		<div class="sr-split__content" data-sr-reveal>
-			<span class="sr-split__motif" data-sr-parallax="4" aria-hidden="true"><?php echo $sr_mukesh_motif; // phpcs:ignore WordPress.Security.EscapeOutput ?></span>
+			<span class="sr-split__motif" data-sr-parallax="4" aria-hidden="true"><?php echo $sr_gota_motif; // phpcs:ignore WordPress.Security.EscapeOutput ?></span>
 			<span class="sr-eyebrow"><?php esc_html_e( 'The Formals', 'samina-rasul' ); ?></span>
-			<h2><?php echo wp_kses_post( __( 'Worn once,<br><em>remembered longer</em>', 'samina-rasul' ) ); ?></h2>
-			<p><?php esc_html_e( 'Occasionwear you can order today. Choose your pieces and size, add a fabric upgrade if you wish. Every order is cut and embellished by hand, for you alone.', 'samina-rasul' ); ?></p>
+			<h2><?php echo wp_kses_post( sr_home_text( 'sr_home_formals_heading' ) ); ?></h2>
+			<p><?php echo esc_html( sr_home_text( 'sr_home_formals_body' ) ); ?></p>
 			<a class="button" href="<?php echo esc_url( sr_term_url( 'formals', 'product_cat' ) ); ?>"><span><?php esc_html_e( 'Shop Formals', 'samina-rasul' ); ?></span></a>
 		</div>
 	</section>
@@ -305,8 +336,19 @@ $sr_pillar_marks = array(
 	<!-- 06 · The second path: Bridals -->
 	<section class="sr-split sr-split--flip sr-split--burgundy">
 		<div class="sr-split__visual">
-			<?php if ( $sr_img['bridals'] ) : ?>
-				<img class="sr-split__img" src="<?php echo esc_url( $sr_img['bridals'] ); ?>" alt="<?php esc_attr_e( 'A Samina Rasul bridal piece', 'samina-rasul' ); ?>" loading="lazy" decoding="async">
+			<?php
+			$sr_bridals_image = sr_home_image(
+				'sr_home_bridals_image',
+				array(
+					'class'    => 'sr-split__img',
+					'alt'      => sr_home_text( 'sr_home_bridals_image_alt' ),
+					'loading'  => 'lazy',
+					'decoding' => 'async',
+				)
+			);
+			?>
+			<?php if ( $sr_bridals_image ) : ?>
+				<?php echo $sr_bridals_image; // phpcs:ignore WordPress.Security.EscapeOutput -- escaped in sr_home_image(). ?>
 			<?php else : ?>
 				<div class="sr-ph sr-ph--deep sr-ph--tall" data-sr-parallax="9">
 					<?php echo $sr_ornament; // phpcs:ignore WordPress.Security.EscapeOutput ?>
@@ -316,11 +358,66 @@ $sr_pillar_marks = array(
 		</div>
 		<div class="sr-split__content" data-sr-reveal>
 			<span class="sr-split__motif" data-sr-parallax="4" aria-hidden="true"><?php echo $sr_zardozi_motif; // phpcs:ignore WordPress.Security.EscapeOutput ?></span>
-			<span class="sr-eyebrow"><?php esc_html_e( 'The Bridals', 'samina-rasul' ); ?></span>
-			<h2><?php echo wp_kses_post( __( 'Begin the<br><em>conversation</em>', 'samina-rasul' ) ); ?></h2>
-			<p><?php esc_html_e( 'A bridal piece is never bought from a shelf, so you will find no price tags here. Tell us about your day, and the atelier will design around you, from fabric and embellishment to silhouette and fit.', 'samina-rasul' ); ?></p>
-			<a class="button sr-ghost" href="<?php echo esc_url( sr_term_url( 'bridals', 'product_cat' ) ); ?>"><span><?php esc_html_e( 'Explore Bridals', 'samina-rasul' ); ?></span></a>
+			<span class="sr-eyebrow"><?php echo esc_html( sr_home_text( 'sr_home_bridals_eyebrow' ) ); ?></span>
+			<h2><?php echo wp_kses_post( sr_home_text( 'sr_home_bridals_heading' ) ); ?></h2>
+			<p><?php echo esc_html( sr_home_text( 'sr_home_bridals_body' ) ); ?></p>
+			<?php // Bridals carry no price and no cart, so booking is the primary action here and browsing the collection is secondary. ?>
+			<div class="sr-split__actions">
+				<a class="button" href="<?php echo esc_url( sr_page_url( 'consultations' ) ); ?>"><span><?php esc_html_e( 'Book a consultation', 'samina-rasul' ); ?></span></a>
+				<a class="button sr-ghost" href="<?php echo esc_url( sr_term_url( 'bridals', 'product_cat' ) ); ?>"><span><?php esc_html_e( 'Explore Bridals', 'samina-rasul' ); ?></span></a>
+			</div>
 		</div>
+	</section>
+
+	<!-- 06b · The Bridal edit: bridal pieces are quoted, not priced, so this row
+	     opens the conversation rather than the cart. -->
+	<?php
+	sr_product_rail(
+		array(
+			'key'       => 'bridals',
+			'class'     => 'sr-rail--bridals',
+			'layout'    => 'grid',
+			'eyebrow'   => __( 'By consultation', 'samina-rasul' ),
+			'heading'   => __( 'The Bridal edit', 'samina-rasul' ),
+			'atts'      => array( 'limit' => 3, 'columns' => 3, 'category' => 'bridals', 'orderby' => 'date' ),
+			'cta_url'   => sr_term_url( 'bridals', 'product_cat' ),
+			'cta_label' => __( 'See all Bridals', 'samina-rasul' ),
+		)
+	);
+	?>
+
+	<!-- 02c · Assurances: the four objections that stop a first order, answered
+	     before the visitor has to go looking for them. -->
+	<?php
+	$sr_assurances = array(
+		array(
+			'title' => __( 'Made to order', 'samina-rasul' ),
+			'copy'  => __( 'Cut for you after you order, never pulled off a shelf.', 'samina-rasul' ),
+		),
+		array(
+			'title' => __( 'Hand embellished', 'samina-rasul' ),
+			'copy'  => __( 'Zardozi, mukesh, resham and gota, worked by hand.', 'samina-rasul' ),
+		),
+		array(
+			'title' => __( '50% to begin', 'samina-rasul' ),
+			'copy'  => __( 'Half the price confirms your order, the rest on dispatch.', 'samina-rasul' ),
+		),
+		array(
+			'title' => __( 'Shipped worldwide', 'samina-rasul' ),
+			'copy'  => __( 'Delivered anywhere, tracked from the atelier to your door.', 'samina-rasul' ),
+		),
+	);
+	?>
+	<section class="sr-assurances" aria-label="<?php esc_attr_e( 'How we work', 'samina-rasul' ); ?>" data-sr-reveal>
+		<ul class="sr-assurances__list">
+			<?php foreach ( $sr_assurances as $sr_assurance ) : ?>
+				<li class="sr-assurance">
+					<span class="sr-assurance__mark" aria-hidden="true"><?php echo sr_star_svg( 'sr-star sr-star--tick' ); // phpcs:ignore WordPress.Security.EscapeOutput -- static inline SVG. ?></span>
+					<strong><?php echo esc_html( $sr_assurance['title'] ); ?></strong>
+					<span><?php echo esc_html( $sr_assurance['copy'] ); ?></span>
+				</li>
+			<?php endforeach; ?>
+		</ul>
 	</section>
 
 	<!-- 07 · Values: what the house believes -->
@@ -331,7 +428,7 @@ $sr_pillar_marks = array(
 		<span class="sr-values__word sr-values__word--3" data-sr-drift="20" aria-hidden="true"><?php esc_html_e( 'Patience', 'samina-rasul' ); ?></span>
 		<div class="sr-values__body" data-sr-reveal>
 			<p><?php esc_html_e( 'Nothing here is mass produced. Every order begins as uncut cloth and passes through the hands of embellishers who have practised zardozi, mukesh, resham and gota for generations. That is why a piece takes seven to nine weeks, and why no two are ever quite the same.', 'samina-rasul' ); ?></p>
-			<a class="button sr-ghost" href="<?php echo esc_url( home_url( '/about-us/' ) ); ?>"><span><?php esc_html_e( 'About the house', 'samina-rasul' ); ?></span></a>
+			<a class="button sr-ghost" href="<?php echo esc_url( sr_page_url( 'about-us' ) ); ?>"><span><?php esc_html_e( 'About the house', 'samina-rasul' ); ?></span></a>
 		</div>
 	</section>
 
@@ -380,6 +477,44 @@ $sr_pillar_marks = array(
 					</li>
 				<?php endforeach; ?>
 			</ol>
+		</div>
+	</section>
+
+	<!-- 08b · Most loved: the last shoppable row before the page closes, so the
+	     scroll ends on merchandise rather than on a form. -->
+	<?php
+	sr_product_rail(
+		array(
+			'key'       => 'loved',
+			'class'     => 'sr-rail--loved',
+			'eyebrow'   => __( 'Chosen most often', 'samina-rasul' ),
+			'heading'   => __( 'Most loved this season', 'samina-rasul' ),
+			'atts'      => array( 'limit' => 8, 'columns' => 4, 'best_selling' => 'true' ),
+			'cta_url'   => sr_shop_url(),
+			'cta_label' => __( 'Shop everything', 'samina-rasul' ),
+		)
+	);
+	?>
+
+	<!-- 08c · The undecided visitor: one direct line rather than a dead end. -->
+	<?php
+	// A configured WhatsApp number is the fastest route to a person; without
+	// one, the contact page is the honest fallback rather than a broken wa.me link.
+	$sr_wa_number = function_exists( 'sr_whatsapp_number' ) ? sr_whatsapp_number() : '';
+	$sr_talk_url  = $sr_wa_number
+		? 'https://wa.me/' . $sr_wa_number . '?text=' . rawurlencode( __( 'Hello Samina Rasul, I would like some help choosing a piece.', 'samina-rasul' ) )
+		: sr_page_url( 'contact' );
+	?>
+	<section class="sr-consult">
+		<div class="sr-consult__inner" data-sr-reveal>
+			<span class="sr-consult__ornament" aria-hidden="true"><?php echo $sr_ornament; // phpcs:ignore WordPress.Security.EscapeOutput ?></span>
+			<span class="sr-eyebrow"><?php esc_html_e( 'Not sure where to begin', 'samina-rasul' ); ?></span>
+			<h2><?php echo wp_kses_post( __( 'Tell us the occasion.<br>We will suggest the <em>piece</em>.', 'samina-rasul' ) ); ?></h2>
+			<p><?php esc_html_e( 'Sizing, fabrics, delivery dates, or a bridal commission from scratch — talk to the atelier before you order.', 'samina-rasul' ); ?></p>
+			<div class="sr-consult__actions">
+				<a class="button" href="<?php echo esc_url( $sr_talk_url ); ?>"<?php echo $sr_wa_number ? ' target="_blank" rel="noopener noreferrer"' : ''; ?>><span><?php esc_html_e( 'Talk to the atelier', 'samina-rasul' ); ?></span></a>
+				<a class="button sr-ghost" href="<?php echo esc_url( sr_shop_url() ); ?>"><span><?php esc_html_e( 'Browse the collection', 'samina-rasul' ); ?></span></a>
+			</div>
 		</div>
 	</section>
 

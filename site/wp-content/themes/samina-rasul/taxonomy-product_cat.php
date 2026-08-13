@@ -28,12 +28,31 @@ $sr_heading     = $sr_term instanceof WP_Term ? $sr_term->name : __( 'The collec
 $sr_description = $sr_term instanceof WP_Term ? term_description( $sr_term ) : '';
 $sr_count       = ( $sr_term instanceof WP_Term && $sr_term->count > 0 ) ? (int) $sr_term->count : 0;
 
-// The category's own image, when one has been set in wp-admin.
+/*
+ * The category's own image, when one has been set in wp-admin.
+ *
+ * Rendered through wp_get_attachment_image() rather than as a bare <img> built
+ * from the 'full' URL. This is the LCP element on the page: the bare version
+ * had no srcset, so a phone downloaded whatever the client uploaded - a 6000px
+ * camera original, whole - and no width/height, so the layout shifted when it
+ * landed. 'sizes' is 100vw because the image is full-bleed behind the masthead.
+ */
 $sr_hero_image = '';
 if ( $sr_term instanceof WP_Term ) {
 	$sr_hero_id = (int) get_term_meta( $sr_term->term_id, 'thumbnail_id', true );
 	if ( $sr_hero_id > 0 ) {
-		$sr_hero_image = wp_get_attachment_image_url( $sr_hero_id, 'full' );
+		$sr_hero_image = wp_get_attachment_image(
+			$sr_hero_id,
+			'full',
+			false,
+			array(
+				'class'         => 'sr-archive__img',
+				'alt'           => '',
+				'sizes'         => '100vw',
+				'fetchpriority' => 'high',
+				'decoding'      => 'async',
+			)
+		);
 	}
 }
 ?>
@@ -50,7 +69,7 @@ if ( $sr_term instanceof WP_Term ) {
 	<header class="sr-archive__hero sr-archive__hero--<?php echo esc_attr( $sr_tone ); ?><?php echo $sr_hero_image ? ' sr-archive__hero--photo' : ''; ?>">
 		<div class="sr-archive__bg" aria-hidden="true" data-sr-parallax="5">
 			<?php if ( $sr_hero_image ) : ?>
-				<img class="sr-archive__img" src="<?php echo esc_url( $sr_hero_image ); ?>" alt="" fetchpriority="high" decoding="async">
+				<?php echo $sr_hero_image; // phpcs:ignore WordPress.Security.EscapeOutput -- wp_get_attachment_image() output. ?>
 			<?php else : ?>
 				<?php echo sr_ornament_svg(); // phpcs:ignore WordPress.Security.EscapeOutput -- static inline SVG. ?>
 			<?php endif; ?>
