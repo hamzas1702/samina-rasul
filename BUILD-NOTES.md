@@ -177,12 +177,53 @@ case and still resolves the right `Host`; the health check exits 0 on a matching
 marker and 1 on a stale marker, a 500, or no response; rollback exits 10 when
 there is nothing to roll back to.
 
+**Deploy pipeline (sixth pass — preflight).** The domain move also moved the
+document root: the site now lives at `~/domains/saminarasul.com/public_html`,
+and wp-cli's "This does not seem to be a WordPress installation" says
+`REMOTE_PATH` is not pointing there.
+
+That matters far more than a failed cache flush. Every rsync in this workflow
+writes to `$REMOTE_PATH/wp-content/…`, and rsync does not object to a target
+that is not a WordPress install — it creates the directories and copies the
+theme in. The swap then succeeds, the backups rotate, and the deploy reports
+success while the live site never changes. A stale preview-domain directory
+left behind by the domain move is exactly the kind of place that happens.
+
+`remote-preflight.sh` now runs **before the first rsync**, so a wrong
+`REMOTE_PATH` costs nothing. It refuses to continue, and rather than only
+refusing it searches `~/domains/*/public_html` and prints each WordPress install
+it finds with the site each one serves — the operator is being asked to fix a
+secret whose effect they cannot see, so handing them the value to paste is the
+difference between a two-minute fix and another round of guessing.
+
+**Deploy pipeline (seventh pass — the 301).** With both secrets corrected the
+preflight passed and the loopback finally reached PHP, which answered `301 Moved
+Permanently` three times. Self-inflicted: the request was `http://127.0.0.1/`
+with a `Host:` header, so WordPress saw a plain-HTTP request for an HTTPS site
+and redirected to the canonical URL — and the retry loop treated the 301 as the
+final answer rather than trying the next target.
+
+`sr_loopback_fetch` now uses `curl --resolve` instead of a `Host` header: it
+requests the real `https://<host>/` URL with the hostname pinned to the loopback
+address. WordPress sees exactly the request a browser makes, TLS gets the right
+SNI, and no redirect happens at all. Ports 80 and 443 are both pinned, for the
+bare host and its `www.` counterpart, so a canonical-redirect rule cannot send
+the second hop to public DNS and back out through the edge this exists to
+bypass. A 3xx that survives all that now prints the `wp option get home` /
+`siteurl` commands to run, rather than a bare status.
+
+Verified against the dev server with `home` aligned to the requested host
+(production conditions): `/` and `/cart/` 200, a missing page 404, the OPcache
+POST 403 on a bad token. And the old shape reproduces the exact 301 the server
+returned, which is how the cause was confirmed rather than guessed.
+
 **Still owed by a human, in order:**
 
-1. **Update the `LIVE_URL` repository secret to `https://saminarasul.com`**, and
-   make sure WordPress's own `siteurl`/`home` options say the same. Everything
-   else in the pipeline now works around a stale value, but the public check
-   cannot pass until it is right.
+1. **Point `REMOTE_PATH` at `/home/<user>/domains/saminarasul.com/public_html`**
+   and **`LIVE_URL` at `https://saminarasul.com`**. Both secrets still refer to
+   the pre-domain-move setup. Push once and read the preflight output — it
+   prints the exact path to use if the value is still wrong. Also confirm
+   WordPress's own `siteurl`/`home` options name the new domain.
 2. **Rotate the auth salts and the DB password in live `wp-config.php`.** They were
    committed and are in the git history; anyone with repo access can forge login
    cookies from the salts. Untracking the file does not undo that.

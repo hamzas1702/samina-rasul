@@ -59,12 +59,25 @@ for path in "${PATHS[@]}"; do
 			break
 		fi
 
-		if [ "$STATUS" = "200" ]; then
-			echo "  200, but the build marker for this commit is missing."
-			echo "     Either the swap did not land, or OPcache is still serving the previous release."
-		else
-			echo "  HTTP $STATUS."
-		fi
+		case "$STATUS" in
+			200)
+				echo "  200, but the build marker for this commit is missing."
+				echo "     Either the swap did not land, or OPcache is still serving the previous release."
+				;;
+			30*)
+				echo "  HTTP $STATUS - a redirect that did not resolve back to this server."
+				echo "     WordPress is sending the request somewhere the loopback cannot follow."
+				echo "     Check that siteurl and home in the database name the domain being served:"
+				echo "       wp option get home --path=$WP_PATH"
+				echo "       wp option get siteurl --path=$WP_PATH"
+				;;
+			000)
+				echo "  No response on any loopback address."
+				;;
+			*)
+				echo "  HTTP $STATUS."
+				;;
+		esac
 
 		if [ -s /tmp/sr_health_body.txt ]; then
 			echo "     Body tail:"

@@ -72,9 +72,16 @@ sr_site_host() {
 # user-agent spoofing changes that. From inside the server there is no edge, no
 # WAF and no IP reputation involved.
 #
-# The Host header is mandatory: without it WordPress does not recognise the
-# request as belonging to this site and answers 301 to the canonical URL - back
-# out through the very middlebox this exists to avoid.
+# --resolve, not a Host header. Both put the right name in the request, but a
+# Host header on an http:// URL leaves WordPress seeing a plain-HTTP request for
+# an https:// site, so it answers 301 to the canonical URL - which is what the
+# first version of this did, on every attempt, until the check gave up.
+#
+# --resolve instead requests the real https:// URL and pins that hostname to the
+# loopback address. WordPress sees exactly the request a browser makes, TLS gets
+# the right SNI, and no redirect happens. Both ports are pinned so that if
+# something does redirect http->https the second hop also stays on loopback and
+# never escapes to public DNS.
 #
 # Usage: sr_loopback_fetch <body_file> <path> <host> [extra curl args...]
 # Echoes the HTTP status, or 000. Always returns 0.
@@ -85,25 +92,38 @@ sr_loopback_fetch() {
 	local host="$3"
 	shift 3
 
-	local target status
+	local ip scheme status alt
+
+	# A canonical-redirect rule (www -> bare, or the reverse) would otherwise
+	# send the second hop to public DNS, straight back out through the edge this
+	# function exists to bypass. Pinning both spellings keeps every hop local.
+	case "$host" in
+		www.*) alt="${host#www.}" ;;
+		*)     alt="www.$host" ;;
+	esac
 
 	# Which loopback address and scheme the web server listens on varies by
-	# host, and an IPv6-only bind looks identical to a broken endpoint if only
-	# one is tried.
-	for target in "http://127.0.0.1" "http://[::1]" "https://127.0.0.1" "https://[::1]"; do
-		status=$(curl --silent --show-error --http1.1 --insecure \
-			--max-time 20 --connect-timeout 5 \
-			-H "Host: $host" \
-			-o "$body" -w "%{http_code}" \
-			"$@" \
-			"${target}${path}" 2>/dev/null) || status="000"
+	# host: an IPv6-only bind is indistinguishable from a broken endpoint if
+	# only one is tried. https first, because that is what a live site is.
+	for scheme in https http; do
+		for ip in "127.0.0.1" "[::1]"; do
+			status=$(curl --silent --show-error --http1.1 --insecure --location \
+				--max-redirs 3 --max-time 20 --connect-timeout 5 \
+				--resolve "$host:443:$ip" \
+				--resolve "$host:80:$ip" \
+				--resolve "$alt:443:$ip" \
+				--resolve "$alt:80:$ip" \
+				-o "$body" -w "%{http_code}" \
+				"$@" \
+				"${scheme}://${host}${path}" 2>/dev/null) || status="000"
 
-		# 000 means nothing is listening on that form; anything else reached
-		# PHP and is the answer, right or wrong.
-		if [ "$status" != "000" ]; then
-			printf '%s' "$status"
-			return 0
-		fi
+			# 000 means nothing is listening on that address/scheme. Anything
+			# else reached PHP and is the answer, right or wrong.
+			if [ "$status" != "000" ]; then
+				printf '%s' "$status"
+				return 0
+			fi
+		done
 	done
 
 	printf '000'

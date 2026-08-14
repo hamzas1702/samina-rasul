@@ -57,6 +57,7 @@ site/wp-content/languages/
 
 # --- Local dev tools (binaries) ---
 .tools/
+.claude/
 .claude/*
 # The dev-server definition is project config, not a local preference - a fresh
 # clone needs it to start the site. settings.local.json stays out: it is this

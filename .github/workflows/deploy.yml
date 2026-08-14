@@ -42,6 +42,24 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
+      - name: Preflight (verify REMOTE_PATH is the WordPress root)
+        env:
+          REMOTE_PATH: ${{ secrets.REMOTE_PATH }}
+          LIVE_URL: ${{ secrets.LIVE_URL }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+        run: |
+          # Runs before the first rsync, so a wrong REMOTE_PATH costs nothing.
+          # rsync would otherwise happily create wp-content/themes/… inside a
+          # directory that is not a WordPress install, and every later step
+          # would pass while the live site never changed.
+          LIVE_URL="${LIVE_URL%/}"
+          SSH_CMD="ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new -p $SSH_PORT $SSH_USER@$SSH_HOST"
+
+          cat ./.github/scripts/remote-lib.sh ./.github/scripts/remote-preflight.sh \
+            | $SSH_CMD "REMOTE_PATH='$REMOTE_PATH' LIVE_URL='$LIVE_URL' bash -s"
+
       - name: Prepare Remote Directories
         env:
           REMOTE_PATH: ${{ secrets.REMOTE_PATH }}
