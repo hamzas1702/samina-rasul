@@ -116,26 +116,71 @@ jobs:
             TS=$(date +%s)
             THEME_DIR="$REMOTE_PATH/wp-content/themes/samina-rasul"
             MU_DIR="$REMOTE_PATH/wp-content/mu-plugins/samina-core"
-            
+
+            # The swap itself must be all-or-nothing, so set -e stays on for it.
+            if [ ! -d "$THEME_DIR-_deploy" ]; then
+              echo "FAIL: $THEME_DIR-_deploy is missing - the theme rsync did not land."
+              exit 1
+            fi
+            if [ ! -d "$MU_DIR-_deploy" ]; then
+              echo "FAIL: $MU_DIR-_deploy is missing - the mu-plugin rsync did not land."
+              exit 1
+            fi
+
+            mkdir -p "$THEME_DIR-backups" "$MU_DIR-backups"
+
             # Zero-gap swap
             if [ -d "$THEME_DIR" ]; then mv "$THEME_DIR" "${THEME_DIR}-tmp-old"; fi
-            if [ -d "$THEME_DIR-_deploy" ]; then mv "$THEME_DIR-_deploy" "$THEME_DIR"; fi
+            mv "$THEME_DIR-_deploy" "$THEME_DIR"
             if [ -d "${THEME_DIR}-tmp-old" ]; then mv "${THEME_DIR}-tmp-old" "$THEME_DIR-backups/samina-rasul-$TS"; fi
 
             if [ -d "$MU_DIR" ]; then mv "$MU_DIR" "${MU_DIR}-tmp-old"; fi
-            if [ -d "$MU_DIR-_deploy" ]; then mv "$MU_DIR-_deploy" "$MU_DIR"; fi
+            mv "$MU_DIR-_deploy" "$MU_DIR"
             if [ -d "${MU_DIR}-tmp-old" ]; then mv "${MU_DIR}-tmp-old" "$MU_DIR-backups/samina-core-$TS"; fi
-            
-            # Safe rotation using standard shell piping
-            THEME_BACKUPS=$(ls -1dt "$THEME_DIR-backups"/samina-rasul-* 2>/dev/null)
-            if [ -n "$THEME_BACKUPS" ]; then
-              echo "$THEME_BACKUPS" | tail -n +4 | xargs -r rm -rf
-            fi
 
-            MU_BACKUPS=$(ls -1dt "$MU_DIR-backups"/samina-core-* 2>/dev/null)
-            if [ -n "$MU_BACKUPS" ]; then
-              echo "$MU_BACKUPS" | tail -n +4 | xargs -r rm -rf
-            fi
+            echo "Swap complete."
+
+            # ---------------------------------------------------------------
+            # Backup rotation. Housekeeping, and from here nothing may fail the
+            # deploy: the new code is already live, so aborting now reports a
+            # failure for a release that actually succeeded and sends a healthy
+            # site into rollback.
+            #
+            # This is what broke the first deploy to a fresh server. The old
+            # rotation read:
+            #
+            #   THEME_BACKUPS=$(ls -1dt "$THEME_DIR-backups"/samina-rasul-* 2>/dev/null)
+            #
+            # With no backups yet the glob does not expand, ls exits 2, and
+            # 2>/dev/null silences the message but not the status. An assignment
+            # carries its command substitution's exit status, so set -e killed
+            # the step with exit 2 - after a swap that had gone perfectly.
+            # ---------------------------------------------------------------
+            set +e
+
+            prune_backups() {
+              dir="$1"
+              prefix="$2"
+              keep=3
+
+              [ -d "$dir" ] || return 0
+
+              # || true is the fix: an empty directory is a normal state, not an
+              # error. Newest first, keep $keep, delete the rest.
+              backups=$(ls -1dt "$dir/$prefix-"* 2>/dev/null || true)
+              [ -n "$backups" ] || return 0
+
+              printf '%s\n' "$backups" | tail -n +$((keep + 1)) | xargs -r rm -rf
+              return 0
+            }
+
+            prune_backups "$THEME_DIR-backups" "samina-rasul"
+            prune_backups "$MU_DIR-backups" "samina-core"
+
+            echo "Backups on disk:"
+            ls -1dt "$THEME_DIR-backups"/samina-rasul-* 2>/dev/null || echo "  none yet (first deploy)"
+
+            exit 0
           EOF
 
       - name: Flush Cache & Reset OPcache (Forward Path)
@@ -148,19 +193,60 @@ jobs:
           SSH_USER: ${{ secrets.SSH_USER }}
         run: |
           SSH_CMD="ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new -p $SSH_PORT $SSH_USER@$SSH_HOST"
-          $SSH_CMD "cd $REMOTE_PATH || exit 1; wp cache flush --quiet || true; wp litespeed-purge all --quiet || true"
+
+          # --path, not cd: `wp` reported "This does not seem to be a WordPress
+          # installation" on every run and the `|| true` swallowed it, so the
+          # object cache was never actually flushed. --skip-plugins keeps a
+          # broken plugin from taking the flush down with it.
+          #
+          # litespeed-purge only exists when the LiteSpeed Cache plugin is
+          # active, so it is probed rather than called blind - "is not a
+          # registered wp command" in a deploy log trains everyone to ignore
+          # deploy logs.
+          $SSH_CMD "REMOTE_PATH='$REMOTE_PATH' bash -s" <<'EOF'
+            set +e
+            if ! wp core is-installed --path="$REMOTE_PATH" --skip-plugins --skip-themes >/dev/null 2>&1; then
+              echo "WARNING: wp-cli cannot see a WordPress install at $REMOTE_PATH - caches were NOT flushed."
+              echo "         Set REMOTE_PATH to the directory holding wp-config.php."
+              exit 0
+            fi
+
+            wp cache flush --path="$REMOTE_PATH" --skip-plugins --skip-themes \
+              && echo "Object cache flushed." \
+              || echo "WARNING: object cache flush failed."
+
+            if wp litespeed-purge --path="$REMOTE_PATH" --help >/dev/null 2>&1; then
+              wp litespeed-purge all --path="$REMOTE_PATH" --quiet \
+                && echo "LiteSpeed cache purged." \
+                || echo "WARNING: LiteSpeed purge failed."
+            else
+              echo "LiteSpeed Cache not active - skipping page-cache purge."
+            fi
+
+            exit 0
+          EOF
 
           echo "Sending forward OPcache reset request..."
           # POST + secret in a header: a token in the query string is recorded by
           # the web server's access log, by any proxy/CDN in front of it, and in
-          # Referer headers. --fail-with-body keeps the response out of the log.
-          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+          # Referer headers.
+          #
+          # Through sr_http so a transport-level failure is reported and retried
+          # rather than killing the step with a bare exit code - this call is
+          # where "exit code 92" (HTTP/2 stream error) came from.
+          source ./.github/scripts/deploy-http.sh
+          HTTP_STATUS=$(sr_http_retry 3 /dev/null "$LIVE_URL/?sr_opcache_reset=1" \
             -X POST \
-            -H "X-SR-Deploy-Token: $SR_OPCACHE_SECRET" \
-            "$LIVE_URL/?sr_opcache_reset=1")
+            -H "X-SR-Deploy-Token: $SR_OPCACHE_SECRET")
+
           if [ "$HTTP_STATUS" != "200" ]; then
             echo "FAIL: OPcache reset endpoint returned HTTP $HTTP_STATUS."
-            echo "Check that SR_OPCACHE_SECRET is defined in live wp-config.php and matches the GitHub secret."
+            case "$HTTP_STATUS" in
+              403) echo "  403 means the token did not match. Define SR_OPCACHE_SECRET in the live wp-config.php with the same value as the GitHub secret of that name." ;;
+              404) echo "  404 means samina-core/opcache-reset.php is not loading. Check that wp-content/mu-plugins/samina-core.php exists on the server." ;;
+              405) echo "  405 means something rewrote the POST to a GET - check for a redirect on $LIVE_URL." ;;
+              000) echo "  The request never completed. See the curl error above." ;;
+            esac
             exit 1
           fi
           echo "OPcache reset successful."
@@ -182,27 +268,48 @@ jobs:
             PAGES+=("$LIVE_URL$HEALTH_CHECK_PRODUCT_PATH")
           fi
           BUST="?sr_qa=$GITHUB_SHA"
-          UA="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
+          source ./.github/scripts/deploy-http.sh
 
           for url in "${PAGES[@]}"; do
+            PASSED=false
+
             for i in 1 2 3; do
-              echo "Attempt $i: Checking $url$BUST ..."
-              HTTP_STATUS=$(curl -sL -m 10 -A "$UA" -o /tmp/body.txt -w "%{http_code}" "$url$BUST")
+              echo "Attempt $i: checking $url$BUST ..."
+
+              # sr_http, not a bare assignment from curl: under this step's
+              # `bash -e`, a transport failure used to take the whole step down
+              # on attempt 1, so these three attempts were never actually three.
+              HTTP_STATUS=$(sr_http /tmp/body.txt "$url$BUST")
+
               if [ "$HTTP_STATUS" = "200" ] && grep -q "sr_build_marker: $GITHUB_SHA" /tmp/body.txt; then
-                echo "OK: $url returned 200 and build marker matches."
+                echo "OK: $url returned 200 and the build marker matches."
+                PASSED=true
                 break
+              fi
+
+              if [ "$HTTP_STATUS" = "200" ]; then
+                echo "WARN: $url returned 200 but the build marker for this commit is missing."
+                echo "      Either the release did not reach the server, or a page cache is serving the old HTML."
               else
-                echo "WARN: $url failed (HTTP $HTTP_STATUS or marker mismatch). Response body tail:"
-                tail -n 20 /tmp/body.txt
-                echo "Retrying in 3s..."
-                sleep 3
+                echo "WARN: $url returned HTTP $HTTP_STATUS."
               fi
-              if [ $i -eq 3 ]; then
-                echo "FAIL: $url did not pass health check after 3 attempts."
-                exit 1
+
+              if [ -s /tmp/body.txt ]; then
+                echo "      Response body tail:"
+                tail -n 20 /tmp/body.txt | sed 's/^/      /'
               fi
+
+              [ "$i" -lt 3 ] && { echo "      Retrying in $((i * 3))s..."; sleep $((i * 3)); }
             done
+
+            if [ "$PASSED" != true ]; then
+              echo "FAIL: $url did not pass the health check after 3 attempts."
+              exit 1
+            fi
           done
+
+          echo "All health checks passed."
 
       - name: Auto-Rollback on Failure
         id: rollback
@@ -216,72 +323,95 @@ jobs:
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_PORT: ${{ secrets.SSH_PORT }}
           SSH_USER: ${{ secrets.SSH_USER }}
+        # No `-e`: this step is the safety net. If it dies partway it never
+        # writes ROLLBACK_STATUS, and the notification then reports "pre-swap,
+        # code did not reach production" for a site that may be mid-rollback -
+        # the single most dangerous wrong thing this pipeline can say.
+        shell: bash {0}
         run: |
           ROLLBACK_STATUS="UNKNOWN"
           SSH_CMD="ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new -p $SSH_PORT $SSH_USER@$SSH_HOST"
 
-          set +e
+          source ./.github/scripts/deploy-http.sh
+
+          # Restore the previous release, and report which case we are in.
+          # Exit 10 is reserved for "there is no backup to roll back to", which
+          # is the normal state on a first deploy and is not a failure.
           $SSH_CMD "REMOTE_PATH='$REMOTE_PATH' bash -s" <<'EOF'
-            set -ex
+            set -u
             THEME_DIR="$REMOTE_PATH/wp-content/themes/samina-rasul"
             MU_DIR="$REMOTE_PATH/wp-content/mu-plugins/samina-core"
-            
-            LATEST_THEME_BACKUP=$(ls -1dt "$THEME_DIR-backups"/samina-rasul-* 2>/dev/null | head -n 1)
-            LATEST_MU_BACKUP=$(ls -1dt "$MU_DIR-backups"/samina-core-* 2>/dev/null | head -n 1)
-            
+
+            # || true: an empty backups directory makes ls exit 2, which is what
+            # took down the swap step on the first deploy.
+            LATEST_THEME_BACKUP=$(ls -1dt "$THEME_DIR-backups"/samina-rasul-* 2>/dev/null | head -n 1 || true)
+            LATEST_MU_BACKUP=$(ls -1dt "$MU_DIR-backups"/samina-core-* 2>/dev/null | head -n 1 || true)
+
+            if [ -z "$LATEST_THEME_BACKUP" ] && [ -z "$LATEST_MU_BACKUP" ]; then
+              echo "No previous release on disk - nothing to roll back to."
+              echo "On a first deploy this is expected: whatever was just installed is all there is."
+              exit 10
+            fi
+
             if [ -n "$LATEST_THEME_BACKUP" ]; then
-              rm -rf "$THEME_DIR"
-              mv "$LATEST_THEME_BACKUP" "$THEME_DIR"
+              echo "Restoring theme from $LATEST_THEME_BACKUP"
+              rm -rf "$THEME_DIR" && mv "$LATEST_THEME_BACKUP" "$THEME_DIR" || exit 1
             fi
             if [ -n "$LATEST_MU_BACKUP" ]; then
-              rm -rf "$MU_DIR"
-              mv "$LATEST_MU_BACKUP" "$MU_DIR"
+              echo "Restoring mu-plugin from $LATEST_MU_BACKUP"
+              rm -rf "$MU_DIR" && mv "$LATEST_MU_BACKUP" "$MU_DIR" || exit 1
             fi
-            cd "$REMOTE_PATH" || exit 1
-            wp cache flush --quiet || true
-            wp litespeed-purge all --quiet || true
+
+            if wp core is-installed --path="$REMOTE_PATH" --skip-plugins --skip-themes >/dev/null 2>&1; then
+              wp cache flush --path="$REMOTE_PATH" --skip-plugins --skip-themes >/dev/null 2>&1 || true
+              if wp litespeed-purge --path="$REMOTE_PATH" --help >/dev/null 2>&1; then
+                wp litespeed-purge all --path="$REMOTE_PATH" --quiet || true
+              fi
+            else
+              echo "WARNING: wp-cli cannot see a WordPress install at $REMOTE_PATH - caches not flushed."
+            fi
+
+            exit 0
           EOF
           SSH_EXIT_CODE=$?
-          set -e
 
-          if [ $SSH_EXIT_CODE -ne 0 ]; then
-            echo "Rollback file operations failed."
+          if [ "$SSH_EXIT_CODE" -eq 10 ]; then
+            ROLLBACK_STATUS="NO_BACKUP"
+          elif [ "$SSH_EXIT_CODE" -ne 0 ]; then
+            echo "Rollback file operations failed (ssh exit $SSH_EXIT_CODE)."
             ROLLBACK_STATUS="FAILED"
           else
             echo "Sending rollback OPcache reset request..."
-            HTTP_STATUS_RESET=$(curl -s -o /dev/null -w "%{http_code}" \
+            HTTP_STATUS_RESET=$(sr_http_retry 3 /dev/null "$LIVE_URL/?sr_opcache_reset=1" \
               -X POST \
-              -H "X-SR-Deploy-Token: $SR_OPCACHE_SECRET" \
-              "$LIVE_URL/?sr_opcache_reset=1")
+              -H "X-SR-Deploy-Token: $SR_OPCACHE_SECRET")
 
             if [ "$HTTP_STATUS_RESET" != "200" ]; then
-              echo "FAIL: Rollback OPcache reset failed (HTTP $HTTP_STATUS_RESET). Stale cache may be served."
+              echo "FAIL: Rollback OPcache reset returned HTTP $HTTP_STATUS_RESET. Stale bytecode may still be served."
               ROLLBACK_STATUS="FAILED"
             else
               sleep 3
-              # Home and cart always exist. A product page exercises far more theme
-          # code, but pinning one product slug means the day the client deletes
-          # that sample every deploy fails and auto-rollback fires on a good
-          # release - so it is opt-in through a repository variable.
-          PAGES=("$LIVE_URL/" "$LIVE_URL/cart/")
-          if [ -n "$HEALTH_CHECK_PRODUCT_PATH" ]; then
-            PAGES+=("$LIVE_URL$HEALTH_CHECK_PRODUCT_PATH")
-          fi
+
+              PAGES=("$LIVE_URL/" "$LIVE_URL/cart/")
+              if [ -n "${HEALTH_CHECK_PRODUCT_PATH:-}" ]; then
+                PAGES+=("$LIVE_URL$HEALTH_CHECK_PRODUCT_PATH")
+              fi
               BUST="?sr_qa=rollback_verify_$GITHUB_SHA"
-              UA="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-              
+
               ALL_PAGES_OK=true
               for url in "${PAGES[@]}"; do
                 echo "Verifying rollback on $url$BUST ..."
-                HTTP_STATUS=$(curl -sL -m 10 -A "$UA" -o /tmp/rollback_body.txt -w "%{http_code}" "$url$BUST")
+                HTTP_STATUS=$(sr_http_retry 3 /tmp/rollback_body.txt "$url$BUST")
+                # Rolled back correctly means: the page serves, and the marker of
+                # the release we just pulled is gone.
                 if [ "$HTTP_STATUS" != "200" ] || grep -q "sr_build_marker: $GITHUB_SHA" /tmp/rollback_body.txt; then
-                  echo "FAIL: Rollback verification failed for $url. (HTTP $HTTP_STATUS or marker mismatch)"
+                  echo "FAIL: Rollback verification failed for $url (HTTP $HTTP_STATUS, or the new build marker is still present)."
                   tail -n 20 /tmp/rollback_body.txt
                   ALL_PAGES_OK=false
                   break
                 fi
               done
-              
+
               if [ "$ALL_PAGES_OK" = true ]; then
                 ROLLBACK_STATUS="SUCCESS"
               else
@@ -290,22 +420,49 @@ jobs:
             fi
           fi
 
-          echo "ROLLBACK_STATUS=$ROLLBACK_STATUS" >> $GITHUB_OUTPUT
+          echo "Rollback status: $ROLLBACK_STATUS"
+          echo "ROLLBACK_STATUS=$ROLLBACK_STATUS" >> "$GITHUB_OUTPUT"
+          exit 0
 
       - name: Notify on Failure
         if: failure()
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
           ROLLBACK_STATUS: ${{ steps.rollback.outputs.ROLLBACK_STATUS }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        shell: bash {0}
         run: |
-          if [ "$ROLLBACK_STATUS" = "SUCCESS" ]; then
-            MSG="🚨 **Deployment Failed** to Staging. Auto-rollback executed and verified across all pages. Site is serving previous version."
-          elif [ "$ROLLBACK_STATUS" = "FAILED" ]; then
-            MSG="🚨🚨 **CRITICAL: Deployment Failed AND Rollback Failed.** MANUAL INTERVENTION REQUIRED. Site may be down."
-          else
-            MSG="🚨 **Deployment Failed** pre-swap. Code did not reach production."
+          case "${ROLLBACK_STATUS:-UNKNOWN}" in
+            SUCCESS)
+              MSG="🚨 **Deployment failed** on staging. Auto-rollback ran and was verified on every checked page. The site is serving the previous release." ;;
+            NO_BACKUP)
+              MSG="🚨 **Deployment failed** on staging, and there was no previous release to roll back to (first deploy). Whatever is on disk is what is being served - check the site." ;;
+            FAILED)
+              MSG="🚨🚨 **CRITICAL: deployment failed AND rollback failed.** Manual intervention required. The site may be down." ;;
+            *)
+              MSG="🚨 **Deployment failed** before the swap. The code did not reach production." ;;
+          esac
+
+          echo "$MSG"
+
+          # The notifier must never be the thing that fails the run: the useful
+          # information is already in the log above. An unset webhook secret made
+          # curl exit 2 with "no URL specified" and turned every genuine failure
+          # into two confusing ones.
+          if [ -z "${DISCORD_WEBHOOK:-}" ]; then
+            echo "DISCORD_WEBHOOK is not set - skipping the notification."
+            exit 0
           fi
-          curl -H "Content-Type: application/json" \
-          -X POST \
-          -d "{\"content\": \"$MSG See: https://github.com/hamzas1702/samina-rasul/actions/runs/${{ github.run_id }}\"}" \
-          $DISCORD_WEBHOOK
+
+          # jq builds the JSON so a quote or newline in the message cannot break
+          # the payload.
+          PAYLOAD=$(jq -nc --arg content "$MSG See: $RUN_URL" '{content: $content}')
+
+          curl -sS -m 15 \
+            -H "Content-Type: application/json" \
+            -X POST \
+            -d "$PAYLOAD" \
+            "$DISCORD_WEBHOOK" \
+            || echo "WARNING: could not reach the Discord webhook."
+
+          exit 0

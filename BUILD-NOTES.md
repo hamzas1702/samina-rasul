@@ -34,6 +34,73 @@ query string (where access logs, proxies and Referer headers record it) into an
 `X-SR-Deploy-Token` header on a POST; the endpoint also stopped running at file scope
 on every request.
 
+**Deploy pipeline (2026-08-14, second pass — after the first live run failed).**
+The first deploy to the fresh server reported exit code 2 at the swap step. The
+swap itself had gone perfectly; the rotation that follows it was the problem:
+
+```bash
+THEME_BACKUPS=$(ls -1dt "$THEME_DIR-backups"/samina-rasul-* 2>/dev/null)
+```
+
+With no backups yet the glob does not expand, GNU `ls` exits 2, and `2>/dev/null`
+silences the message but not the status. An assignment carries the exit status of
+its command substitution, so `set -e` killed the step — only ever on a first
+deploy, when the backups directory is empty. Everything downstream followed from
+that: rollback correctly found no previous release and reported failure anyway,
+and the notifier then failed too. Fixed, and verified against a simulated remote
+across four scenarios (first deploy, second deploy, six backups pruned to three,
+upgrade with no backups yet) — all exit 0 with the right files in place.
+
+Also fixed in the same pass:
+- Rotation now runs after `set +e`. Once the swap has happened the release is
+  live; housekeeping must never fail it or send a healthy site into rollback.
+- `wp cache flush` ran as `cd $REMOTE_PATH; wp ...` and printed "This does not
+  seem to be a WordPress installation" on every run, swallowed by `|| true` — so
+  **no deploy has ever actually flushed the cache**. Now `--path="$REMOTE_PATH"`,
+  with `wp core is-installed` probed first and a visible warning when it fails.
+- `wp litespeed-purge` is probed before use instead of erroring when the LiteSpeed
+  plugin is inactive.
+- The rollback step runs without `-e` and always writes `ROLLBACK_STATUS`. It
+  could previously die on its own `curl` and leave the status unset, which made
+  the notification say "failed pre-swap, code did not reach production" about a
+  site that was mid-rollback.
+- New `NO_BACKUP` status distinguishes "there is no previous release" (normal on a
+  first deploy) from "rollback broke".
+- The notifier skips cleanly when `DISCORD_WEBHOOK` is unset. It was running
+  `curl` with an empty URL, exiting 2, and turning one real failure into two.
+  The payload is built with `jq` so a quote in the message cannot break it.
+
+**Deploy pipeline (third pass — the "exit code 92" run).** Same class of bug as
+the `ls` one, in a different place. Every HTTP call was written as
+
+```bash
+HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$URL")
+```
+
+inside a `bash -e` step. An assignment carries its command substitution's exit
+status, so any *transport*-level curl failure killed the step before the line
+that interprets the status ever ran — printing a bare `exit code 92`, which is
+`CURLE_HTTP2_STREAM`, an HTTP/2 framing error. In the health check the same
+pattern meant the three-attempt retry loop could never reach attempt two: the
+first failure took the whole step down.
+
+All four call sites now go through `.github/scripts/deploy-http.sh`:
+- `sr_http` prints the status (`000` when the request did not complete), names
+  the curl failure in English, and never returns non-zero — including when
+  called as a bare statement, which is why the assignment inside it is written
+  `... || rc=$?` rather than followed by `rc=$?`.
+- `sr_http_retry` retries non-2xx/3xx with backoff.
+- HTTP/1.1 is forced. That is where exit 92 came from: LiteSpeed resets the
+  HTTP/2 stream on a request that ends in an abrupt `exit()` from PHP, which is
+  exactly what the OPcache endpoint does.
+- The OPcache step now explains each status instead of printing a number: 403 →
+  the secret does not match, 404 → the mu-plugin loader is missing, 405 → a
+  redirect turned the POST into a GET.
+
+Verified locally against the running dev server: real 200/403/404/405, connection
+refused, unresolvable host, retry exhaustion, retry recovery, and the health
+check's full three-attempt path in both the pass and fail directions.
+
 **Still owed by a human, in order:**
 
 1. **Rotate the auth salts and the DB password in live `wp-config.php`.** They were
