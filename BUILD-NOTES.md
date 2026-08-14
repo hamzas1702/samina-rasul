@@ -101,6 +101,50 @@ Verified locally against the running dev server: real 200/403/404/405, connectio
 refused, unresolvable host, retry exhaustion, retry recovery, and the health
 check's full three-attempt path in both the pass and fail directions.
 
+**Deploy pipeline (fourth pass — curl 56, and the OPcache endpoint is not
+reachable from GitHub).** With the diagnostics in place the run finally said
+what was wrong: `curl: (56) Recv failure: Connection reset by peer`, on all
+three attempts, over HTTP/1.1. The server accepts the connection and then kills
+it mid-response — that is a WAF or edge proxy rejecting an unusual POST from an
+unfamiliar IP, not anything PHP ever saw. It is the same underlying refusal that
+previously surfaced as curl 92 over HTTP/2.
+
+Two changes, and the second is the important one:
+
+1. **The OPcache reset now runs from the server to itself**, over the loopback
+   with a `Host:` header, inside the existing ssh session. No CDN, no WAF, no
+   public exposure. The `Host` header is required — without it WordPress does
+   not recognise the site and answers 301 back out through the middlebox this
+   call exists to avoid. Both `127.0.0.1` and `[::1]` are tried, because which
+   one the web server binds is host-dependent (the local dev server here binds
+   IPv6-only, which is how that case got noticed). The public URL is still
+   attempted afterwards, but only as confirmation.
+
+2. **Cache work no longer gates the deploy.** The real gate is the health check
+   that follows it: it asserts *this commit's build marker is in the live HTML*,
+   which is a direct test of "the new code is being served". Stale bytecode or a
+   stale page cache fails that check and triggers rollback on its own. A second
+   hard gate on the flush call added a way for a good release to be rejected
+   without adding any guarantee the marker check did not already provide. The
+   rollback path had the same flaw and would report `FAILED` — the message that
+   gets someone out of bed — for a rollback that had worked perfectly.
+
+Also in this pass:
+- `LIVE_URL` is stripped of a trailing slash where the helper is sourced. With
+  one, every URL became `https://site//path`, which some WAFs reject outright:
+  an entire class of unexplained deploy failure caused by one character in a
+  settings field nobody looks at.
+- The WordPress root is auto-detected (`$REMOTE_PATH`, `public_html`, parent)
+  instead of assuming `REMOTE_PATH` holds `wp-config.php` — it does not on this
+  host, which is why `wp cache flush` had never once run. It now says which
+  directory it found and warns loudly when it finds none.
+
+Verified locally: the endpoint returns 200 with the correct token over loopback
+with a Host header, 403 with a wrong token, 405 on GET, and leaves normal pages
+alone; root detection finds WordPress in `public_html` when `REMOTE_PATH` points
+at the parent; and the whole step exits 0 with clear warnings when there is no
+WordPress and no secret at all.
+
 **Still owed by a human, in order:**
 
 1. **Rotate the auth salts and the DB password in live `wp-config.php`.** They were

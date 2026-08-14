@@ -25,6 +25,16 @@
 # an abrupt exit() from PHP.
 SR_CURL_BASE=(--silent --show-error --http1.1 --location --max-time 20 --connect-timeout 10)
 
+# Every caller builds URLs as "$LIVE_URL/path". A trailing slash in the secret
+# therefore yields "https://site//path", which some WAFs and LiteSpeed setups
+# reject outright - a whole class of unexplained deploy failure caused by one
+# character in a settings field nobody looks at. Normalised here, once, so it is
+# fixed for every step that sources this file.
+if [ -n "${LIVE_URL:-}" ]; then
+	LIVE_URL="${LIVE_URL%/}"
+	export LIVE_URL
+fi
+
 # Chrome UA: some managed hosts serve a challenge page to unrecognised agents,
 # which fails the build-marker check for reasons that have nothing to do with
 # the release.
