@@ -191,202 +191,78 @@ jobs:
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_PORT: ${{ secrets.SSH_PORT }}
           SSH_USER: ${{ secrets.SSH_USER }}
-        # Cache work is best effort and this step never fails the deploy.
-        #
-        # The real gate is the health check that follows: it asserts this
-        # commit's build marker is in the live HTML, which is a direct test of
-        # "the new code is actually being served". Stale bytecode or a stale
-        # page cache fails that check and triggers rollback. A separate hard
-        # gate here adds a way for a good release to be rejected without adding
-        # any guarantee the marker check does not already give.
+        # Best effort throughout - see remote-flush.sh for why this never fails
+        # the deploy. The gate is the health check that follows.
         shell: bash {0}
         run: |
-          # A trailing slash in the secret produces "https://site//?…", which
-          # some WAFs and LiteSpeed configurations reject outright.
           LIVE_URL="${LIVE_URL%/}"
           SSH_CMD="ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new -p $SSH_PORT $SSH_USER@$SSH_HOST"
 
-          $SSH_CMD "REMOTE_PATH='$REMOTE_PATH' LIVE_URL='$LIVE_URL' SR_OPCACHE_SECRET='$SR_OPCACHE_SECRET' bash -s" <<'EOF'
-            set +e
-
-            # ---------------------------------------------------------------
-            # Find the WordPress root.
-            #
-            # wp-cli reported "This does not seem to be a WordPress
-            # installation" on every deploy and `|| true` swallowed it, so no
-            # deploy has ever actually flushed a cache. REMOTE_PATH is the
-            # directory holding wp-content (the rsync targets prove that much)
-            # but is evidently not where wp-config.php lives, so look in the
-            # usual places rather than making the operator guess.
-            # ---------------------------------------------------------------
-            WP_PATH=""
-            for candidate in "$REMOTE_PATH" "$REMOTE_PATH/public_html" "$REMOTE_PATH/.." "$(dirname "$REMOTE_PATH")/public_html"; do
-              [ -d "$candidate" ] || continue
-              if [ -f "$candidate/wp-config.php" ] || [ -f "$candidate/../wp-config.php" ]; then
-                if wp core is-installed --path="$candidate" --skip-plugins --skip-themes >/dev/null 2>&1; then
-                  WP_PATH="$candidate"
-                  break
-                fi
-              fi
-            done
-
-            if [ -z "$WP_PATH" ]; then
-              echo "WARNING: no WordPress install found at or near $REMOTE_PATH - caches were NOT flushed."
-              echo "         Point the REMOTE_PATH secret at the directory holding wp-config.php."
-            else
-              [ "$WP_PATH" = "$REMOTE_PATH" ] || echo "Note: WordPress root is $WP_PATH, not REMOTE_PATH ($REMOTE_PATH)."
-
-              wp cache flush --path="$WP_PATH" --skip-plugins --skip-themes >/dev/null 2>&1 \
-                && echo "Object cache flushed." \
-                || echo "WARNING: object cache flush failed."
-
-              # litespeed-purge only exists when the LiteSpeed Cache plugin is
-              # active. Probed, not called blind - "is not a registered wp
-              # command" in a deploy log trains everyone to ignore deploy logs.
-              if wp litespeed-purge --path="$WP_PATH" --help >/dev/null 2>&1; then
-                wp litespeed-purge all --path="$WP_PATH" --quiet \
-                  && echo "LiteSpeed cache purged." \
-                  || echo "WARNING: LiteSpeed purge failed."
-              else
-                echo "LiteSpeed Cache not active - no page cache to purge."
-              fi
-            fi
-
-            # ---------------------------------------------------------------
-            # OPcache reset, from the server to itself.
-            #
-            # The web SAPI's OPcache is a different cache from the CLI's, so
-            # wp-cli cannot clear it; it has to be an HTTP request. Calling the
-            # public URL from the GitHub runner kept failing at the transport
-            # layer - first curl 92 (HTTP/2 stream error), then curl 56
-            # (connection reset by peer) on every attempt - which is a WAF or
-            # edge proxy killing an unusual POST from an unfamiliar IP, not
-            # anything PHP ever saw.
-            #
-            # Going over the loopback from inside the server skips every one of
-            # those middleboxes. The Host header keeps WordPress resolving the
-            # right site on shared hosting.
-            # ---------------------------------------------------------------
-            if [ -z "$SR_OPCACHE_SECRET" ]; then
-              echo "WARNING: SR_OPCACHE_SECRET is not set in this workflow - skipping the OPcache reset."
-            elif ! command -v curl >/dev/null 2>&1; then
-              echo "WARNING: curl is not available on the server - skipping the OPcache reset."
-            else
-              HOST=$(printf '%s' "$LIVE_URL" | sed -E 's#^https?://##; s#/.*$##')
-              echo "Resetting OPcache from the server (loopback, Host: $HOST)..."
-
-              # The Host header is not optional: without it WordPress sees a
-              # request for 127.0.0.1, does not recognise the site, and answers
-              # with a 301 to the canonical URL - back out through the very
-              # middlebox this call exists to avoid.
-              #
-              # Both loopback forms are tried because which one the web server
-              # listens on varies by host, and an IPv6-only bind would otherwise
-              # look identical to the endpoint being broken.
-              STATUS="000"
-              for target in "http://127.0.0.1/" "http://[::1]/" "https://127.0.0.1/"; do
-                STATUS=$(curl --silent --show-error --http1.1 --insecure --max-time 15 \
-                  -o /tmp/sr_opcache_out -w "%{http_code}" \
-                  -X POST \
-                  -H "Host: $HOST" \
-                  -H "X-SR-Deploy-Token: $SR_OPCACHE_SECRET" \
-                  "${target}?sr_opcache_reset=1" 2>/tmp/sr_opcache_err) || STATUS="000"
-                # 000 means this loopback form is not listening; anything else
-                # reached PHP and is the answer, right or wrong.
-                [ "$STATUS" != "000" ] && break
-              done
-
-              if [ "$STATUS" = "200" ]; then
-                echo "OPcache reset via loopback ($target)."
-              else
-                echo "WARNING: loopback OPcache reset returned $STATUS."
-                [ -s /tmp/sr_opcache_err ] && sed 's/^/         /' /tmp/sr_opcache_err
-                case "$STATUS" in
-                  403) echo "         403: the token did not match. Define SR_OPCACHE_SECRET in $WP_PATH/wp-config.php with the same value as the GitHub secret." ;;
-                  404) echo "         404: the endpoint is not loading. Check that wp-content/mu-plugins/samina-core.php exists." ;;
-                  000) echo "         No loopback address answered - the web server may not listen on localhost here." ;;
-                esac
-              fi
-            fi
-
-            exit 0
-          EOF
-
-          # Public fallback, in case loopback is not routable on this host.
-          # Also best effort - if OPcache really is stale, the build-marker
-          # health check below is what will catch it.
-          source ./.github/scripts/deploy-http.sh
-          echo "Confirming over the public URL..."
-          PUBLIC_STATUS=$(sr_http_retry 2 /dev/null "$LIVE_URL/?sr_opcache_reset=1" \
-            -X POST \
-            -H "X-SR-Deploy-Token: $SR_OPCACHE_SECRET")
-          if [ "$PUBLIC_STATUS" = "200" ]; then
-            echo "Public OPcache endpoint also responded 200."
-          else
-            echo "Note: public OPcache endpoint returned $PUBLIC_STATUS (not fatal - the health check verifies the live build marker)."
-          fi
+          # The shared library is piped in ahead of the step script rather than
+          # uploaded: one copy of "where is WordPress" and "how do I reach it",
+          # and nothing left behind on the host.
+          cat ./.github/scripts/remote-lib.sh ./.github/scripts/remote-flush.sh \
+            | $SSH_CMD "REMOTE_PATH='$REMOTE_PATH' LIVE_URL='$LIVE_URL' SR_OPCACHE_SECRET='$SR_OPCACHE_SECRET' bash -s"
 
           exit 0
 
-      - name: Comprehensive Health Check (Forward Path)
+      - name: Health Check (Forward Path)
         id: health_check
         env:
+          REMOTE_PATH: ${{ secrets.REMOTE_PATH }}
           LIVE_URL: ${{ secrets.LIVE_URL }}
           GITHUB_SHA: ${{ github.sha }}
           # Optional. Repository variable, e.g. "/product/some-live-product/".
           HEALTH_CHECK_PRODUCT_PATH: ${{ vars.HEALTH_CHECK_PRODUCT_PATH }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+        shell: bash {0}
         run: |
-          # Home and cart always exist. A product page exercises far more theme
-          # code, but pinning one product slug means the day the client deletes
-          # that sample every deploy fails and auto-rollback fires on a good
-          # release - so it is opt-in through a repository variable.
-          PAGES=("$LIVE_URL/" "$LIVE_URL/cart/")
-          if [ -n "$HEALTH_CHECK_PRODUCT_PATH" ]; then
-            PAGES+=("$LIVE_URL$HEALTH_CHECK_PRODUCT_PATH")
-          fi
-          BUST="?sr_qa=$GITHUB_SHA"
+          LIVE_URL="${LIVE_URL%/}"
+          SSH_CMD="ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new -p $SSH_PORT $SSH_USER@$SSH_HOST"
 
+          # The gate: run on the server, over the loopback. Checking from the
+          # runner does not work on this host - every request is reset before a
+          # response arrives, whether the site is healthy or not.
+          cat ./.github/scripts/remote-lib.sh ./.github/scripts/remote-health.sh \
+            | $SSH_CMD "REMOTE_PATH='$REMOTE_PATH' LIVE_URL='$LIVE_URL' GITHUB_SHA='$GITHUB_SHA' HEALTH_CHECK_PRODUCT_PATH='$HEALTH_CHECK_PRODUCT_PATH' bash -s"
+          GATE=$?
+
+          if [ "$GATE" -ne 0 ]; then
+            echo "FAIL: the release did not verify on the server."
+            exit 1
+          fi
+
+          # ---------------------------------------------------------------
+          # Public reachability, informational only.
+          #
+          # Two different questions: "is the new code being served" (answered
+          # above, authoritatively) and "can the outside world load the site"
+          # (below). The second cannot fail the deploy, because a negative
+          # answer from a GitHub runner does not distinguish a site that is down
+          # from a host that refuses datacenter IPs.
+          # ---------------------------------------------------------------
           source ./.github/scripts/deploy-http.sh
 
-          for url in "${PAGES[@]}"; do
-            PASSED=false
+          echo ""
+          echo "Checking the public URL ($LIVE_URL)..."
+          PUBLIC_STATUS=$(sr_http_retry 2 /tmp/public_body.txt "$LIVE_URL/?sr_qa=$GITHUB_SHA")
 
-            for i in 1 2 3; do
-              echo "Attempt $i: checking $url$BUST ..."
+          if [ "$PUBLIC_STATUS" = "200" ] && grep -q "sr_build_marker: $GITHUB_SHA" /tmp/public_body.txt; then
+            echo "Public URL serves this release."
+          elif [ "$PUBLIC_STATUS" = "200" ]; then
+            echo "NOTE: the public URL responds, but without this commit's build marker."
+            echo "      Something in front of the site is serving cached HTML."
+          else
+            echo "NOTE: the public URL returned $PUBLIC_STATUS from this runner."
+            echo "      The release is verified on the server, so this is about reachability, not the code."
+            echo "      Most common cause: the LIVE_URL secret points at a hostname the server no longer"
+            echo "      serves - an old *.hostingersite.com preview domain, for example, after a real"
+            echo "      domain has been attached. Compare it with the site URL reported above."
+          fi
 
-              # sr_http, not a bare assignment from curl: under this step's
-              # `bash -e`, a transport failure used to take the whole step down
-              # on attempt 1, so these three attempts were never actually three.
-              HTTP_STATUS=$(sr_http /tmp/body.txt "$url$BUST")
-
-              if [ "$HTTP_STATUS" = "200" ] && grep -q "sr_build_marker: $GITHUB_SHA" /tmp/body.txt; then
-                echo "OK: $url returned 200 and the build marker matches."
-                PASSED=true
-                break
-              fi
-
-              if [ "$HTTP_STATUS" = "200" ]; then
-                echo "WARN: $url returned 200 but the build marker for this commit is missing."
-                echo "      Either the release did not reach the server, or a page cache is serving the old HTML."
-              else
-                echo "WARN: $url returned HTTP $HTTP_STATUS."
-              fi
-
-              if [ -s /tmp/body.txt ]; then
-                echo "      Response body tail:"
-                tail -n 20 /tmp/body.txt | sed 's/^/      /'
-              fi
-
-              [ "$i" -lt 3 ] && { echo "      Retrying in $((i * 3))s..."; sleep $((i * 3)); }
-            done
-
-            if [ "$PASSED" != true ]; then
-              echo "FAIL: $url did not pass the health check after 3 attempts."
-              exit 1
-            fi
-          done
-
-          echo "All health checks passed."
+          exit 0
 
       - name: Auto-Rollback on Failure
         id: rollback
@@ -402,118 +278,21 @@ jobs:
           SSH_USER: ${{ secrets.SSH_USER }}
         # No `-e`: this step is the safety net. If it dies partway it never
         # writes ROLLBACK_STATUS, and the notification then reports "pre-swap,
-        # code did not reach production" for a site that may be mid-rollback -
-        # the single most dangerous wrong thing this pipeline can say.
+        # code did not reach production" about a site that is mid-rollback - the
+        # most dangerous wrong thing this pipeline can say.
         shell: bash {0}
         run: |
-          ROLLBACK_STATUS="UNKNOWN"
+          LIVE_URL="${LIVE_URL%/}"
           SSH_CMD="ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new -p $SSH_PORT $SSH_USER@$SSH_HOST"
 
-          source ./.github/scripts/deploy-http.sh
+          cat ./.github/scripts/remote-lib.sh ./.github/scripts/remote-rollback.sh \
+            | $SSH_CMD "REMOTE_PATH='$REMOTE_PATH' LIVE_URL='$LIVE_URL' SR_OPCACHE_SECRET='$SR_OPCACHE_SECRET' GITHUB_SHA='$GITHUB_SHA' HEALTH_CHECK_PRODUCT_PATH='$HEALTH_CHECK_PRODUCT_PATH' bash -s"
 
-          # Restore the previous release, and report which case we are in.
-          # Exit 10 is reserved for "there is no backup to roll back to", which
-          # is the normal state on a first deploy and is not a failure.
-          $SSH_CMD "REMOTE_PATH='$REMOTE_PATH' LIVE_URL='$LIVE_URL' SR_OPCACHE_SECRET='$SR_OPCACHE_SECRET' bash -s" <<'EOF'
-            set -u
-            THEME_DIR="$REMOTE_PATH/wp-content/themes/samina-rasul"
-            MU_DIR="$REMOTE_PATH/wp-content/mu-plugins/samina-core"
-
-            # || true: an empty backups directory makes ls exit 2, which is what
-            # took down the swap step on the first deploy.
-            LATEST_THEME_BACKUP=$(ls -1dt "$THEME_DIR-backups"/samina-rasul-* 2>/dev/null | head -n 1 || true)
-            LATEST_MU_BACKUP=$(ls -1dt "$MU_DIR-backups"/samina-core-* 2>/dev/null | head -n 1 || true)
-
-            if [ -z "$LATEST_THEME_BACKUP" ] && [ -z "$LATEST_MU_BACKUP" ]; then
-              echo "No previous release on disk - nothing to roll back to."
-              echo "On a first deploy this is expected: whatever was just installed is all there is."
-              exit 10
-            fi
-
-            if [ -n "$LATEST_THEME_BACKUP" ]; then
-              echo "Restoring theme from $LATEST_THEME_BACKUP"
-              rm -rf "$THEME_DIR" && mv "$LATEST_THEME_BACKUP" "$THEME_DIR" || exit 1
-            fi
-            if [ -n "$LATEST_MU_BACKUP" ]; then
-              echo "Restoring mu-plugin from $LATEST_MU_BACKUP"
-              rm -rf "$MU_DIR" && mv "$LATEST_MU_BACKUP" "$MU_DIR" || exit 1
-            fi
-
-            # Same root detection as the forward path, and the same loopback
-            # OPcache reset - the public endpoint is unreachable from the runner
-            # on this host, and during a rollback getting the old bytecode out
-            # of OPcache matters more than it does on the way forward.
-            WP_PATH=""
-            for candidate in "$REMOTE_PATH" "$REMOTE_PATH/public_html" "$REMOTE_PATH/.." "$(dirname "$REMOTE_PATH")/public_html"; do
-              [ -d "$candidate" ] || continue
-              if wp core is-installed --path="$candidate" --skip-plugins --skip-themes >/dev/null 2>&1; then
-                WP_PATH="$candidate"
-                break
-              fi
-            done
-
-            if [ -n "$WP_PATH" ]; then
-              wp cache flush --path="$WP_PATH" --skip-plugins --skip-themes >/dev/null 2>&1 || true
-              if wp litespeed-purge --path="$WP_PATH" --help >/dev/null 2>&1; then
-                wp litespeed-purge all --path="$WP_PATH" --quiet || true
-              fi
-            else
-              echo "WARNING: no WordPress install found at or near $REMOTE_PATH - caches not flushed."
-            fi
-
-            if [ -n "$SR_OPCACHE_SECRET" ] && command -v curl >/dev/null 2>&1; then
-              HOST=$(printf '%s' "$LIVE_URL" | sed -E 's#^https?://##; s#/.*$##')
-              curl --silent --show-error --http1.1 --insecure --max-time 15 -o /dev/null \
-                -X POST -H "Host: $HOST" -H "X-SR-Deploy-Token: $SR_OPCACHE_SECRET" \
-                "http://127.0.0.1/?sr_opcache_reset=1" \
-                && echo "OPcache reset via loopback." \
-                || echo "WARNING: loopback OPcache reset failed - the verification below is what decides."
-            fi
-
-            exit 0
-          EOF
-          SSH_EXIT_CODE=$?
-
-          if [ "$SSH_EXIT_CODE" -eq 10 ]; then
-            ROLLBACK_STATUS="NO_BACKUP"
-          elif [ "$SSH_EXIT_CODE" -ne 0 ]; then
-            echo "Rollback file operations failed (ssh exit $SSH_EXIT_CODE)."
-            ROLLBACK_STATUS="FAILED"
-          else
-            # The OPcache reset already happened over the loopback inside the
-            # ssh block above. Whether it answered is not the verdict: what
-            # decides a rollback is whether the live pages serve and no longer
-            # carry the marker of the release being pulled. Gating on the reset
-            # call would report a healthy rollback as FAILED - and "rollback
-            # failed" is the message that gets someone out of bed.
-            sleep 3
-
-            PAGES=("$LIVE_URL/" "$LIVE_URL/cart/")
-            if [ -n "${HEALTH_CHECK_PRODUCT_PATH:-}" ]; then
-              PAGES+=("$LIVE_URL$HEALTH_CHECK_PRODUCT_PATH")
-            fi
-            BUST="?sr_qa=rollback_verify_$GITHUB_SHA"
-
-            ALL_PAGES_OK=true
-            for url in "${PAGES[@]}"; do
-              echo "Verifying rollback on $url$BUST ..."
-              HTTP_STATUS=$(sr_http_retry 3 /tmp/rollback_body.txt "$url$BUST")
-              # Rolled back correctly means: the page serves, and the marker of
-              # the release we just pulled is gone.
-              if [ "$HTTP_STATUS" != "200" ] || grep -q "sr_build_marker: $GITHUB_SHA" /tmp/rollback_body.txt; then
-                echo "FAIL: rollback verification failed for $url (HTTP $HTTP_STATUS, or the new build marker is still present)."
-                [ -s /tmp/rollback_body.txt ] && tail -n 20 /tmp/rollback_body.txt | sed 's/^/      /'
-                ALL_PAGES_OK=false
-                break
-              fi
-            done
-
-            if [ "$ALL_PAGES_OK" = true ]; then
-              ROLLBACK_STATUS="SUCCESS"
-            else
-              ROLLBACK_STATUS="FAILED"
-            fi
-          fi
+          case $? in
+            0)  ROLLBACK_STATUS="SUCCESS" ;;
+            10) ROLLBACK_STATUS="NO_BACKUP" ;;
+            *)  ROLLBACK_STATUS="FAILED" ;;
+          esac
 
           echo "Rollback status: $ROLLBACK_STATUS"
           echo "ROLLBACK_STATUS=$ROLLBACK_STATUS" >> "$GITHUB_OUTPUT"

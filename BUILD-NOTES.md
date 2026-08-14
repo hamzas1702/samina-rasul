@@ -145,15 +145,51 @@ alone; root detection finds WordPress in `public_html` when `REMOTE_PATH` points
 at the parent; and the whole step exits 0 with clear warnings when there is no
 WordPress and no secret at all.
 
+**Deploy pipeline (fifth pass — the actual root cause).** Every request from the
+GitHub runner was reset mid-response, including a plain `GET /` of the homepage.
+Not a WAF and not IP blocking: the `LIVE_URL` secret still pointed at
+`springgreen-antelope-932724.hostingersite.com`, the Hostinger preview domain,
+after the real domain `saminarasul.com` was attached. The server stopped
+answering to the old hostname, and a host that does not serve a name resets the
+connection rather than replying — which reads like a firewall and is not one.
+
+Two changes so this class of mistake announces itself instead of costing days:
+
+1. **The health check moved onto the server**, over the loopback, and is now the
+   gate. It asserts this commit's build marker is in the rendered HTML, which is
+   the only thing that actually needs to be true. The public URL is still
+   checked afterwards but is informational — a negative from a GitHub runner
+   cannot distinguish a site that is down from a host that will not talk to it.
+2. **A hostname-mismatch warning.** `wp option get home` is compared with the
+   `LIVE_URL` secret on every deploy, and a mismatch is printed with both values
+   and the exact fix. The loopback calls take their `Host` header from
+   WordPress's own `home` option rather than from the secret, so the deploy keeps
+   working even while the secret is stale.
+
+The remote scripts also moved out of the YAML into `.github/scripts/`
+(`remote-lib.sh`, `remote-flush.sh`, `remote-health.sh`, `remote-rollback.sh`).
+Each step pipes the library plus its own script into `ssh … bash -s`, so nothing
+is uploaded or left behind, and "where is WordPress" and "how do I reach it" are
+defined once instead of in three copies that drift.
+
+Verified: the mismatch warning reproduces the exact preview-domain/real-domain
+case and still resolves the right `Host`; the health check exits 0 on a matching
+marker and 1 on a stale marker, a 500, or no response; rollback exits 10 when
+there is nothing to roll back to.
+
 **Still owed by a human, in order:**
 
-1. **Rotate the auth salts and the DB password in live `wp-config.php`.** They were
+1. **Update the `LIVE_URL` repository secret to `https://saminarasul.com`**, and
+   make sure WordPress's own `siteurl`/`home` options say the same. Everything
+   else in the pipeline now works around a stale value, but the public check
+   cannot pass until it is right.
+2. **Rotate the auth salts and the DB password in live `wp-config.php`.** They were
    committed and are in the git history; anyone with repo access can forge login
    cookies from the salts. Untracking the file does not undo that.
-2. `SR_OPCACHE_SECRET` in live `wp-config.php`, matching the GitHub secret.
-3. Optionally set the `HEALTH_CHECK_PRODUCT_PATH` repository variable to a real,
+3. `SR_OPCACHE_SECRET` in live `wp-config.php`, matching the GitHub secret.
+4. Optionally set the `HEALTH_CHECK_PRODUCT_PATH` repository variable to a real,
    permanent product path.
-4. Consider `git filter-repo` to purge the old blobs if the repo is ever shared
+5. Consider `git filter-repo` to purge the old blobs if the repo is ever shared
    outside the team — rotation (1) is what actually closes the hole; this only
    shrinks the history.
 
