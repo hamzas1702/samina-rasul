@@ -330,6 +330,148 @@ function sr_home_fields() {
 			'label'   => __( 'Link label on each piece', 'samina-rasul' ),
 			'default' => __( 'View bridal set', 'samina-rasul' ),
 		),
+
+		// 08 · About us.
+		'sr_about_hero_image'       => array(
+			'section'     => 'sr_about',
+			'type'        => 'image',
+			'label'       => __( 'Hero image', 'samina-rasul' ),
+			'description' => __( 'Full-bleed, behind the title. A wide, dark-toned photograph works best - the title sits over it.', 'samina-rasul' ),
+		),
+		'sr_about_eyebrow'          => array(
+			'section' => 'sr_about',
+			'type'    => 'text',
+			'label'   => __( 'Hero eyebrow', 'samina-rasul' ),
+			'default' => __( 'The house of Samina Rasul', 'samina-rasul' ),
+		),
+		'sr_about_title'            => array(
+			'section'     => 'sr_about',
+			'type'        => 'html',
+			'label'       => __( 'Hero title', 'samina-rasul' ),
+			'description' => __( 'Use &lt;br&gt; for a line break and &lt;em&gt; for italics.', 'samina-rasul' ),
+			'default'     => __( 'The art of<br><em>hand-worked</em> couture.', 'samina-rasul' ),
+		),
+		'sr_about_manifesto'        => array(
+			'section'     => 'sr_about',
+			'type'        => 'html',
+			'label'       => __( 'Manifesto', 'samina-rasul' ),
+			'description' => __( 'The large opening statement. &lt;em&gt; for italics.', 'samina-rasul' ),
+			'default'     => __( 'We do not simply make clothes. We keep a <em>hand craft</em> alive - zardozi, mukaish, resham, gota - and work it into pieces cut for one woman, and one occasion.', 'samina-rasul' ),
+		),
+		'sr_about_craft_image'      => array(
+			'section'     => 'sr_about',
+			'type'        => 'image',
+			'label'       => __( 'Craft image', 'samina-rasul' ),
+			'description' => __( 'Held still beside the three craft notes as they scroll. A close-up of handwork suits it.', 'samina-rasul' ),
+		),
+		'sr_about_craft_caption'    => array(
+			'section' => 'sr_about',
+			'type'    => 'html',
+			'label'   => __( 'Craft image caption', 'samina-rasul' ),
+			'default' => __( 'The hand.<br>The heart.', 'samina-rasul' ),
+		),
+		'sr_about_craft_1_title'    => array(
+			'section' => 'sr_about',
+			'type'    => 'text',
+			'label'   => __( 'Craft 1 · heading', 'samina-rasul' ),
+			'default' => __( 'Hand-embellished, never printed', 'samina-rasul' ),
+		),
+		'sr_about_craft_1_body'     => array(
+			'section' => 'sr_about',
+			'type'    => 'textarea',
+			'label'   => __( 'Craft 1 · body', 'samina-rasul' ),
+			'default' => __( 'Every motif is worked by hand, not printed onto cloth. Naqshi, zardozi, mukaish and resham are set stitch by stitch by embellishers whose craft has passed through generations of the same workshops.', 'samina-rasul' ),
+		),
+		'sr_about_craft_2_title'    => array(
+			'section' => 'sr_about',
+			'type'    => 'text',
+			'label'   => __( 'Craft 2 · heading', 'samina-rasul' ),
+			'default' => __( 'Cloth chosen first', 'samina-rasul' ),
+		),
+		'sr_about_craft_2_body'     => array(
+			'section' => 'sr_about',
+			'type'    => 'textarea',
+			'label'   => __( 'Craft 2 · body', 'samina-rasul' ),
+			'default' => __( 'An heirloom is only as good as the cloth it is cut from. Pure sheesha silk, Korean raw silk, tissue organza and chiffon - chosen for how they fall and hold light, which is the part a photograph never quite shows.', 'samina-rasul' ),
+		),
+		'sr_about_craft_3_title'    => array(
+			'section' => 'sr_about',
+			'type'    => 'text',
+			'label'   => __( 'Craft 3 · heading', 'samina-rasul' ),
+			'default' => __( 'Made for one', 'samina-rasul' ),
+		),
+		'sr_about_craft_3_body'     => array(
+			'section' => 'sr_about',
+			'type'    => 'textarea',
+			'label'   => __( 'Craft 3 · body', 'samina-rasul' ),
+			'default' => __( 'Nothing here exists before it is ordered. Each piece is cut to your measurements and finished over seven to nine weeks in the atelier. That patience is the point - it is the difference between a dress and a piece you keep.', 'samina-rasul' ),
+		),
+		'sr_about_pillars_heading'  => array(
+			'section' => 'sr_about',
+			'type'    => 'html',
+			'label'   => __( 'Principles · heading', 'samina-rasul' ),
+			'default' => __( 'Bound by <em>three</em> principles.', 'samina-rasul' ),
+		),
+		'sr_about_pillar_1_title'   => array(
+			'section' => 'sr_about',
+			'type'    => 'text',
+			'label'   => __( 'Principle 1 · title', 'samina-rasul' ),
+			'default' => __( 'Craftsmanship', 'samina-rasul' ),
+		),
+		'sr_about_pillar_1_body'    => array(
+			'section' => 'sr_about',
+			'type'    => 'textarea',
+			'label'   => __( 'Principle 1 · body', 'samina-rasul' ),
+			'default' => __( 'A stubborn attention to the stitch nobody will see, on the inside of a seam nobody will open.', 'samina-rasul' ),
+		),
+		'sr_about_pillar_2_title'   => array(
+			'section' => 'sr_about',
+			'type'    => 'text',
+			'label'   => __( 'Principle 2 · title', 'samina-rasul' ),
+			'default' => __( 'Material honesty', 'samina-rasul' ),
+		),
+		'sr_about_pillar_2_body'    => array(
+			'section' => 'sr_about',
+			'type'    => 'textarea',
+			'label'   => __( 'Principle 2 · body', 'samina-rasul' ),
+			'default' => __( 'The fabric is named on every piece, because what a garment is made of is not a detail to be discovered later.', 'samina-rasul' ),
+		),
+		'sr_about_pillar_3_title'   => array(
+			'section' => 'sr_about',
+			'type'    => 'text',
+			'label'   => __( 'Principle 3 · title', 'samina-rasul' ),
+			'default' => __( 'A personal fitting', 'samina-rasul' ),
+		),
+		'sr_about_pillar_3_body'    => array(
+			'section' => 'sr_about',
+			'type'    => 'textarea',
+			'label'   => __( 'Principle 3 · body', 'samina-rasul' ),
+			'default' => __( 'Colour, fabric and size are yours to decide. Bridal pieces are designed in conversation, from first sketch to final fitting.', 'samina-rasul' ),
+		),
+		'sr_about_founder_image'    => array(
+			'section' => 'sr_about',
+			'type'    => 'image',
+			'label'   => __( 'Founder image', 'samina-rasul' ),
+		),
+		'sr_about_founder_quote'    => array(
+			'section'     => 'sr_about',
+			'type'        => 'html',
+			'label'       => __( 'Founder quote', 'samina-rasul' ),
+			'description' => __( 'Quotation marks are added by the design - do not type them.', 'samina-rasul' ),
+			'default'     => __( 'A piece from this house is never only a dress. It carries the hands that worked it, and the belief that a woman should feel <em>entirely herself</em> on the days that matter most.', 'samina-rasul' ),
+		),
+		'sr_about_founder_name'     => array(
+			'section' => 'sr_about',
+			'type'    => 'text',
+			'label'   => __( 'Founder name', 'samina-rasul' ),
+			'default' => __( 'Samina Rasul', 'samina-rasul' ),
+		),
+		'sr_about_founder_role'     => array(
+			'section' => 'sr_about',
+			'type'    => 'text',
+			'label'   => __( 'Founder role', 'samina-rasul' ),
+			'default' => __( 'Founder & Creative Director', 'samina-rasul' ),
+		),
 	);
 
 	return $fields;
@@ -597,6 +739,7 @@ function sr_register_homepage_customizer( $wp_customize ) {
 		'sr_home_formals'     => __( 'Formals section', 'samina-rasul' ),
 		'sr_home_bridals'     => __( 'Bridals section', 'samina-rasul' ),
 		'sr_lookbook'         => __( 'Bridals lookbook page', 'samina-rasul' ),
+		'sr_about'            => __( 'About us page', 'samina-rasul' ),
 	);
 
 	$priority = 10;

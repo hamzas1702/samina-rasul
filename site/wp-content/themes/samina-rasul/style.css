@@ -6716,3 +6716,289 @@ a.sr-contact__value:hover { color: var(--sr-sand); }
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
+
+/* ===========================================================================
+   About us
+
+   Built on the house tokens rather than the reference's own palette: Bodoni
+   Moda and Archivo in place of Cormorant and Jost, the burgundy ground and
+   sand accent already used by the footer and the consultation page, and the
+   same section rhythm (--sr-section, --sr-content-max, --sr-gutter) as every
+   other page so this reads as part of the site rather than a landing page
+   borrowed from somewhere else.
+   ======================================================================== */
+
+.sr-about { overflow-x: clip; }
+
+/* --- Hero ------------------------------------------------------------- */
+.sr-about-hero {
+	position: relative;
+	display: flex;
+	align-items: flex-end;
+	min-height: min(88vh, 60rem);
+	padding: clamp(3rem, 8vw, 6rem) var(--sr-gutter);
+	background: var(--sr-burgundy-deep);
+	color: var(--sr-cream);
+	overflow: hidden;
+}
+.sr-about-hero__bg { position: absolute; inset: 0; z-index: 0; }
+.sr-about-hero__img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	display: block;
+}
+/* No photograph yet: the ornament stands in rather than a flat colour block. */
+.sr-about-hero:not(.sr-about-hero--photo) .sr-about-hero__bg {
+	display: grid;
+	place-items: center;
+	color: var(--sr-sand);
+	opacity: .18;
+}
+.sr-about-hero:not(.sr-about-hero--photo) .sr-about-hero__bg svg { width: min(60%, 30rem); height: auto; }
+
+/* Bottom-weighted so the title sits on the darkest part of the picture and
+   stays legible whatever is behind it. */
+.sr-about-hero__scrim {
+	position: absolute;
+	inset: 0;
+	z-index: 1;
+	background: linear-gradient(to top, rgba(46, 18, 22, .88) 0%, rgba(46, 18, 22, .45) 45%, rgba(46, 18, 22, .1) 100%);
+}
+.sr-about-hero__content {
+	position: relative;
+	z-index: 2;
+	width: min(100%, var(--sr-content-max));
+	margin: 0 auto;
+}
+.sr-about-hero .sr-eyebrow { color: var(--sr-sand); }
+.sr-about-hero__title {
+	margin: .45em 0 0;
+	font-family: var(--sr-font-display);
+	font-weight: 300;
+	font-size: clamp(2.6rem, 7.5vw, 6.5rem);
+	line-height: .98;
+	color: var(--sr-cream);
+}
+.sr-about-hero__title em { font-style: italic; color: var(--sr-sand); }
+
+/* --- Manifesto -------------------------------------------------------- */
+.sr-about-manifesto {
+	padding: var(--sr-section) var(--sr-gutter);
+	text-align: center;
+}
+.sr-about-manifesto p {
+	width: min(100%, 52rem);
+	margin: 0 auto;
+	font-family: var(--sr-font-display);
+	font-weight: 300;
+	font-size: clamp(1.5rem, 3.4vw, 2.7rem);
+	line-height: 1.35;
+	color: var(--sr-ink);
+}
+.sr-about-manifesto em { font-style: italic; color: var(--sr-burgundy); }
+
+/* --- Craft ------------------------------------------------------------ */
+.sr-about-craft {
+	display: grid;
+	grid-template-columns: 1fr;
+	background: var(--sr-cream);
+}
+.sr-about-craft__visual { position: relative; overflow: hidden; }
+.sr-about-craft__img,
+.sr-about-craft__visual .sr-ph {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	display: block;
+}
+.sr-about-craft__visual::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	background: linear-gradient(to top, rgba(46, 18, 22, .62), rgba(46, 18, 22, .12));
+}
+.sr-about-craft__caption {
+	position: absolute;
+	left: clamp(1.5rem, 4vw, 3.5rem);
+	bottom: clamp(1.5rem, 4vw, 3.5rem);
+	z-index: 2;
+}
+.sr-about-craft__caption h2 {
+	margin: 0;
+	font-family: var(--sr-font-display);
+	font-style: italic;
+	font-weight: 400;
+	font-size: clamp(1.6rem, 3.2vw, 2.6rem);
+	line-height: 1.15;
+	color: var(--sr-sand);
+}
+.sr-about-craft__notes {
+	display: flex;
+	flex-direction: column;
+	gap: clamp(3rem, 9vw, 8rem);
+	padding: var(--sr-section) var(--sr-gutter);
+}
+.sr-about-note { max-width: 34rem; }
+.sr-about-note__num {
+	display: block;
+	margin-bottom: .8rem;
+	font-family: var(--sr-font-display);
+	font-style: italic;
+	font-size: 1.35rem;
+	color: var(--sr-burgundy);
+	opacity: .75;
+}
+.sr-about-note h3 {
+	margin: 0 0 .7rem;
+	font-family: var(--sr-font-display);
+	font-weight: 400;
+	font-size: clamp(1.5rem, 2.8vw, 2.3rem);
+	line-height: 1.15;
+	color: var(--sr-ink);
+}
+.sr-about-note p {
+	margin: 0;
+	font-size: .95rem;
+	line-height: 1.8;
+	color: var(--sr-ink-70);
+}
+
+@media (min-width: 900px) {
+	.sr-about-craft { grid-template-columns: 1fr 1fr; }
+	.sr-about-craft__visual {
+		/* Held still while the notes move past it. Below the header, not under
+		   it - the same offset every other sticky element on the site uses. */
+		position: sticky;
+		top: var(--sr-sticky-top);
+		height: calc(100vh - var(--sr-sticky-top) - 2rem);
+	}
+	.sr-about-craft__notes {
+		justify-content: center;
+		padding-inline: clamp(2.5rem, 5vw, 5rem);
+	}
+}
+
+/* --- Principles ------------------------------------------------------- */
+.sr-about-principles {
+	position: relative;
+	padding: var(--sr-section) var(--sr-gutter);
+	background: var(--sr-burgundy-deep);
+	color: var(--sr-cream);
+	overflow: hidden;
+}
+/* The house name, outlined and oversized, sitting behind the words. Same
+   device as the footer wordmark. */
+.sr-about-principles__art {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	font-family: var(--sr-font-display);
+	font-style: italic;
+	font-size: clamp(6rem, 22vw, 20rem);
+	line-height: 1;
+	white-space: nowrap;
+	color: transparent;
+	-webkit-text-stroke: 1px var(--sr-cream-line);
+	pointer-events: none;
+	user-select: none;
+	z-index: 0;
+}
+.sr-about-principles__inner {
+	position: relative;
+	z-index: 1;
+	width: min(100%, var(--sr-content-max));
+	margin: 0 auto;
+}
+.sr-about-principles h2 {
+	margin: 0 0 clamp(2.5rem, 6vw, 4.5rem);
+	font-family: var(--sr-font-display);
+	font-weight: 400;
+	font-size: clamp(2rem, 4.2vw, 3.6rem);
+	line-height: 1.1;
+	text-align: center;
+	color: var(--sr-cream);
+}
+.sr-about-principles h2 em { font-style: italic; color: var(--sr-sand); }
+
+.sr-about-pillars {
+	display: grid;
+	grid-template-columns: 1fr;
+	gap: clamp(2rem, 4vw, 3.5rem);
+}
+@media (min-width: 800px) {
+	.sr-about-pillars { grid-template-columns: repeat(3, 1fr); }
+}
+.sr-about-pillar { padding-top: 1.6rem; border-top: 1px solid var(--sr-cream-line); }
+.sr-about-pillar h3 {
+	margin: 0 0 .6rem;
+	font-family: var(--sr-font-display);
+	font-weight: 500;
+	font-size: 1.5rem;
+	color: var(--sr-cream);
+}
+.sr-about-pillar p {
+	margin: 0;
+	font-size: .9rem;
+	line-height: 1.75;
+	color: var(--sr-cream-70);
+}
+
+/* --- Founder ---------------------------------------------------------- */
+.sr-about-founder {
+	display: grid;
+	grid-template-columns: 1fr;
+	background: var(--sr-cream);
+}
+@media (min-width: 900px) {
+	.sr-about-founder { grid-template-columns: 1fr 1fr; align-items: stretch; }
+}
+.sr-about-founder__visual { position: relative; overflow: hidden; min-height: 22rem; }
+.sr-about-founder__img,
+.sr-about-founder__visual .sr-ph {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	display: block;
+}
+.sr-about-founder__note {
+	margin: 0;
+	padding: clamp(3rem, 7vw, 6rem) clamp(1.75rem, 5vw, 4.5rem);
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+}
+.sr-about-founder__note .sr-eyebrow { color: var(--sr-burgundy); }
+.sr-about-founder__note blockquote {
+	margin: 1.2em 0 1.8em;
+	padding: 0;
+	border: 0;
+	font-family: var(--sr-font-display);
+	font-style: italic;
+	font-weight: 400;
+	font-size: clamp(1.4rem, 2.6vw, 2.1rem);
+	line-height: 1.42;
+	color: var(--sr-ink);
+}
+/* The quotation marks belong to the design, not to the copy - so the client
+   never has to remember to type them, or type them twice. */
+.sr-about-founder__note blockquote::before { content: "\201C"; }
+.sr-about-founder__note blockquote::after { content: "\201D"; }
+.sr-about-founder__note blockquote em { color: var(--sr-burgundy); font-style: italic; }
+.sr-about-founder__name {
+	display: block;
+	font-size: .78rem;
+	font-weight: 500;
+	letter-spacing: .18em;
+	text-transform: uppercase;
+	color: var(--sr-ink-70);
+}
+.sr-about-founder__role {
+	display: block;
+	margin-top: .35rem;
+	font-family: var(--sr-font-display);
+	font-style: italic;
+	font-size: 1.1rem;
+	color: var(--sr-burgundy);
+}

@@ -41,7 +41,23 @@ for var in SSH_HOST SSH_USER REMOTE_PATH; do
 done
 
 SSH_PORT="${SSH_PORT:-22}"
-SSH_CMD=(ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new -p "$SSH_PORT" "$SSH_USER@$SSH_HOST")
+
+# An explicit key, when there is one. Hostinger takes a deploy key rather than a
+# password, and this box has no ssh-agent running, so without -i every call
+# falls through to "Permission denied (publickey)".
+SSH_BASE=(-o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new)
+RSYNC_SSH="ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new -p $SSH_PORT"
+
+if [ -n "${SSH_KEY:-}" ]; then
+	[ -r "$SSH_KEY" ] || { echo "FAIL: \$SSH_KEY ($SSH_KEY) is not readable." >&2; exit 1; }
+	SSH_BASE+=(-i "$SSH_KEY" -o IdentitiesOnly=yes)
+	RSYNC_SSH="$RSYNC_SSH -i $SSH_KEY -o IdentitiesOnly=yes"
+fi
+
+# scp spells the port -P where ssh spells it -p, which is why these are built
+# separately rather than by rewriting one array into the other.
+SSH_CMD=(ssh "${SSH_BASE[@]}" -p "$SSH_PORT" "$SSH_USER@$SSH_HOST")
+SCP_CMD=(scp -q "${SSH_BASE[@]}" -P "$SSH_PORT")
 REMOTE_PATH="${REMOTE_PATH%/}"
 
 [ -f "$CSV" ] || { echo "FAIL: no catalogue at $CSV. Run parse-raw-catalog.php first." >&2; exit 1; }
@@ -80,7 +96,7 @@ if [ -d "$IMAGES" ]; then
 	echo "==> Syncing photographs"
 	rsync -az --size-only \
 		--chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
-		-e "ssh -o StrictHostKeyChecking=accept-new -p $SSH_PORT" \
+		-e "$RSYNC_SSH" \
 		"$IMAGES/" "$SSH_USER@$SSH_HOST:$REMOTE_PATH/wp-content/uploads/catalog/"
 else
 	echo "==> No catalog/images directory - skipping photographs"
@@ -104,21 +120,29 @@ sr_cleanup() {
 }
 trap sr_cleanup EXIT
 
-scp -q -o StrictHostKeyChecking=accept-new -P "$SSH_PORT" \
+"${SCP_CMD[@]}" \
 	"$ROOT/tools/seed/seed-lib.php" \
 	"$ROOT/tools/seed/seed-1-taxonomies.php" \
 	"$ROOT/tools/seed/seed-5-catalog.php" \
 	"$ROOT/tools/seed/seed-4-specs.php" \
+	"$ROOT/tools/seed/seed-6-pages.php" \
 	"$SSH_USER@$SSH_HOST:$REMOTE_TMP/tools/seed/"
 
-scp -q -o StrictHostKeyChecking=accept-new -P "$SSH_PORT" \
+"${SCP_CMD[@]}" \
 	"$CSV" "$SSH_USER@$SSH_HOST:$REMOTE_TMP/catalog/"
+
+# The content pages. They are database rows too, which is why the policy pages
+# only ever existed on whichever install they were written on.
+if [ -f "$ROOT/catalog/pages.json" ]; then
+	"${SCP_CMD[@]}" \
+		"$ROOT/catalog/pages.json" "$SSH_USER@$SSH_HOST:$REMOTE_TMP/catalog/"
+fi
 
 # The description overrides, when there are any. They are read relative to the
 # catalogue root, so they have to sit beside it.
 if compgen -G "$ROOT/catalog/descriptions/*" >/dev/null; then
 	"${SSH_CMD[@]}" "mkdir -p '$REMOTE_TMP/catalog/descriptions'"
-	scp -q -o StrictHostKeyChecking=accept-new -P "$SSH_PORT" \
+	"${SCP_CMD[@]}" \
 		"$ROOT"/catalog/descriptions/* "$SSH_USER@$SSH_HOST:$REMOTE_TMP/catalog/descriptions/"
 fi
 
@@ -134,10 +158,11 @@ echo "==> Importing"
 "${SSH_CMD[@]}" "cd '$REMOTE_PATH' \
 	&& wp eval-file '$REMOTE_TMP/tools/seed/seed-1-taxonomies.php' \
 	&& wp eval-file '$REMOTE_TMP/tools/seed/seed-5-catalog.php' \
-	&& wp eval-file '$REMOTE_TMP/tools/seed/seed-4-specs.php'"
+	&& wp eval-file '$REMOTE_TMP/tools/seed/seed-4-specs.php' \
+	&& wp eval-file '$REMOTE_TMP/tools/seed/seed-6-pages.php'"
 
 echo "==> Fetching the reports"
-scp -q -o StrictHostKeyChecking=accept-new -P "$SSH_PORT" \
+"${SCP_CMD[@]}" \
 	"$SSH_USER@$SSH_HOST:$REMOTE_TMP/catalog/*-report.md" "$ROOT/catalog/" 2>/dev/null \
 	|| echo "  (no reports came back - check the output above)"
 
