@@ -68,3 +68,7 @@ site/wp-content/languages/
 # --- OS / editor ---
 .DS_Store
 *.log
+
+# --- Catalogue photography (23 MB of client images; shipped to the server by
+# rsync, not by git). ---
+catalog/images/

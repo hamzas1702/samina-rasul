@@ -319,7 +319,7 @@
 			ringX(e.clientX); ringY(e.clientY); dotX(e.clientX); dotY(e.clientY);
 		}, { passive: true });
 
-		var hoverSelector = 'a, button, input[type="submit"], li.product, [role="button"], select, label.sr-addon-option';
+		var hoverSelector = 'a, button, input[type="submit"], li.product, .sr-lb-item, [role="button"], select, label.sr-addon-option';
 		/* Controls keep the system cursor. A button already says it is a button,
 		 * and a "View" badge over an Add to cart button is a lie about where the
 		 * click goes. */
@@ -329,7 +329,9 @@
 			if (!t) { return; }
 			var onControl = !!e.target.closest(nativeSelector);
 			var label = '';
-			var card = e.target.closest('li.product');
+			// A grid card and a lookbook entry are the same promise: the whole
+			// tile is one link to one piece.
+			var card = e.target.closest('li.product, .sr-lb-item');
 			// Only the card's own linked area carries the badge, which is the
 			// same area that is actually clickable.
 			if (card && !onControl) { label = card.querySelector('.sr-whatsapp-inquire') ? 'Inquire' : 'View'; }
@@ -347,8 +349,16 @@
 		document.addEventListener('mouseenter', function () { docEl.classList.remove('sr-cursor-gone'); });
 	}
 
-	// Magnetic buttons.
-	gsap.utils.toArray('.sr-hero .button, .sr-newsletter .button, .site-header .button').forEach(function (btn) {
+	/*
+	 * Magnetic buttons.
+	 *
+	 * Editorial surfaces only. The header is deliberately excluded: GSAP writes
+	 * x/y as a transform, which replaces any transform the element already
+	 * carries for layout. The header button is positioned, so it was dragged
+	 * out of place on first hover and never came back - mouseleave returns to
+	 * x:0/y:0, not to the layout transform it started with.
+	 */
+	gsap.utils.toArray('.sr-hero .button, .sr-newsletter .button').forEach(function (btn) {
 		var xTo = gsap.quickTo(btn, 'x', { duration: 0.4, ease: 'power3.out' });
 		var yTo = gsap.quickTo(btn, 'y', { duration: 0.4, ease: 'power3.out' });
 		btn.addEventListener('mousemove', function (e) {

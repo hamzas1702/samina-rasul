@@ -185,21 +185,21 @@ $sr_pillar_marks = array(
 			<nav class="sr-shop-gateway__grid sr-shop-gateway__grid--3" aria-label="<?php esc_attr_e( 'Shop the Samina Rasul house', 'samina-rasul' ); ?>">
 				<a class="sr-route sr-route--media sr-route--formal" href="<?php echo esc_url( sr_term_url( 'formals', 'product_cat' ) ); ?>" data-sr-reveal>
 					<div class="sr-route__media">
-						<?php echo sr_term_card_media( 'formals', 'product_cat', 'warm' ); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped in helper. ?>
+						<?php echo sr_term_card_media( 'formals', 'product_cat', 'warm', sr_home_image_id( 'sr_home_tile_1_image' ) ); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped in helper. ?>
 						<span class="sr-route__art" data-sr-parallax="4"><?php echo $sr_mukesh_motif; // phpcs:ignore WordPress.Security.EscapeOutput ?></span>
 					</div>
 					<div class="sr-route__copy"><span class="sr-route__index">01 · <?php echo esc_html( sr_home_text( 'sr_home_tile_1_badge' ) ); ?></span><h3><?php echo esc_html( sr_home_text( 'sr_home_tile_1_title' ) ); ?></h3><p><?php echo esc_html( sr_home_text( 'sr_home_tile_1_body' ) ); ?></p><span class="sr-route__cta"><?php echo esc_html( sr_home_text( 'sr_home_tile_1_cta' ) ); ?> <b aria-hidden="true">→</b></span></div>
 				</a>
 				<a class="sr-route sr-route--media sr-route--bridal" href="<?php echo esc_url( sr_term_url( 'bridals', 'product_cat' ) ); ?>" data-sr-reveal>
 					<div class="sr-route__media">
-						<?php echo sr_term_card_media( 'bridals', 'product_cat', 'deep' ); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped in helper. ?>
+						<?php echo sr_term_card_media( 'bridals', 'product_cat', 'deep', sr_home_image_id( 'sr_home_tile_2_image' ) ); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped in helper. ?>
 						<span class="sr-route__art" data-sr-parallax="4"><?php echo $sr_zardozi_motif; // phpcs:ignore WordPress.Security.EscapeOutput ?></span>
 					</div>
 					<div class="sr-route__copy"><span class="sr-route__index">02 · <?php echo esc_html( sr_home_text( 'sr_home_tile_2_badge' ) ); ?></span><h3><?php echo esc_html( sr_home_text( 'sr_home_tile_2_title' ) ); ?></h3><p><?php echo esc_html( sr_home_text( 'sr_home_tile_2_body' ) ); ?></p><span class="sr-route__cta"><?php echo esc_html( sr_home_text( 'sr_home_tile_2_cta' ) ); ?> <b aria-hidden="true">→</b></span></div>
 				</a>
 				<a class="sr-route sr-route--media sr-route--dhanak" href="<?php echo esc_url( sr_term_url( 'dhanak', 'sr_collection' ) ); ?>" data-sr-reveal>
 					<div class="sr-route__media">
-						<?php echo sr_term_card_media( 'dhanak', 'sr_collection', 'warm' ); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped in helper. ?>
+						<?php echo sr_term_card_media( 'dhanak', 'sr_collection', 'warm', sr_home_image_id( 'sr_home_tile_3_image' ) ); // phpcs:ignore WordPress.Security.EscapeOutput -- escaped in helper. ?>
 						<span class="sr-route__art" data-sr-parallax="4"><?php echo $sr_gota_motif; // phpcs:ignore WordPress.Security.EscapeOutput ?></span>
 					</div>
 					<div class="sr-route__copy"><span class="sr-route__index">03 · <?php echo esc_html( sr_home_text( 'sr_home_tile_3_badge' ) ); ?></span><h3><?php echo esc_html( sr_home_text( 'sr_home_tile_3_title' ) ); ?></h3><p><?php echo esc_html( sr_home_text( 'sr_home_tile_3_body' ) ); ?></p><span class="sr-route__cta"><?php echo esc_html( sr_home_text( 'sr_home_tile_3_cta' ) ); ?> <b aria-hidden="true">→</b></span></div>

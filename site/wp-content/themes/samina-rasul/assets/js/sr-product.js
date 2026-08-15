@@ -224,6 +224,12 @@
 		var headingText = isSize
 			? (strings.selectPrefix || 'Select %s').replace('%s', labelText)
 			: labelText;
+
+		/* Sizes are a handful of two-character labels and read as a row of
+		 * pills. Everything else is a fabric or a made-up combination whose
+		 * label runs to a full sentence, and those need a row each - as pills
+		 * they wrapped into a ragged staircase of wildly different widths. */
+		group.classList.add(isSize ? 'sr-swatch-group--size' : 'sr-swatch-group--option');
 		if (isSize && sizeGuide) {
 			head.appendChild(sizeGuide);
 			sizeGuide = null;

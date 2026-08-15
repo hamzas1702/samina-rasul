@@ -126,12 +126,17 @@ function sr_home_fields() {
 			'label'   => __( 'Body copy', 'samina-rasul' ),
 			'default' => __( 'Discover our exquisite range of handcrafted couture, where every stitch tells a story of elegance and tradition.', 'samina-rasul' ),
 		),
-		'sr_home_tile_1_badge'        => array(
+		'sr_home_tile_1_image'        => array(
 			'section'     => 'sr_home_collections',
-			'type'        => 'text',
-			'label'       => __( 'Card 1 · badge', 'samina-rasul' ),
-			'description' => __( 'Card images are set on the category itself, under Products → Categories.', 'samina-rasul' ),
-			'default'     => __( 'Ready to order', 'samina-rasul' ),
+			'type'        => 'image',
+			'label'       => __( 'Card 1 · image', 'samina-rasul' ),
+			'description' => __( 'Optional. Leave empty to use the Formals category image from Products → Categories.', 'samina-rasul' ),
+		),
+		'sr_home_tile_1_badge'        => array(
+			'section' => 'sr_home_collections',
+			'type'    => 'text',
+			'label'   => __( 'Card 1 · badge', 'samina-rasul' ),
+			'default' => __( 'Ready to order', 'samina-rasul' ),
 		),
 		'sr_home_tile_1_title'        => array(
 			'section' => 'sr_home_collections',
@@ -150,6 +155,12 @@ function sr_home_fields() {
 			'type'    => 'text',
 			'label'   => __( 'Card 1 · link label', 'samina-rasul' ),
 			'default' => __( 'View Collection', 'samina-rasul' ),
+		),
+		'sr_home_tile_2_image'        => array(
+			'section'     => 'sr_home_collections',
+			'type'        => 'image',
+			'label'       => __( 'Card 2 · image', 'samina-rasul' ),
+			'description' => __( 'Optional. Leave empty to use the Bridals category image.', 'samina-rasul' ),
 		),
 		'sr_home_tile_2_badge'        => array(
 			'section' => 'sr_home_collections',
@@ -174,6 +185,12 @@ function sr_home_fields() {
 			'type'    => 'text',
 			'label'   => __( 'Card 2 · link label', 'samina-rasul' ),
 			'default' => __( 'View Collection', 'samina-rasul' ),
+		),
+		'sr_home_tile_3_image'        => array(
+			'section'     => 'sr_home_collections',
+			'type'        => 'image',
+			'label'       => __( 'Card 3 · image', 'samina-rasul' ),
+			'description' => __( 'Optional. Leave empty to use the Dhanak collection image.', 'samina-rasul' ),
 		),
 		'sr_home_tile_3_badge'        => array(
 			'section' => 'sr_home_collections',
@@ -263,6 +280,56 @@ function sr_home_fields() {
 			'label'   => __( 'Body copy', 'samina-rasul' ),
 			'default' => __( 'A bridal piece is never bought from a shelf, so you will find no price tags here. Tell us about your day, and the atelier will design around you, from fabric and embellishment to silhouette and fit.', 'samina-rasul' ),
 		),
+
+		// 07 · The Bridals lookbook (the /product-category/bridals/ template).
+		//
+		// The heading is not here on purpose: it is the category's own name,
+		// edited under Products → Categories, and duplicating it in a second
+		// place is how the two end up disagreeing.
+		'sr_lookbook_eyebrow'       => array(
+			'section' => 'sr_lookbook',
+			'type'    => 'text',
+			'label'   => __( 'Eyebrow', 'samina-rasul' ),
+			'default' => __( 'Samina Rasul Bridal Atelier', 'samina-rasul' ),
+		),
+		'sr_lookbook_meta_1'        => array(
+			'section'     => 'sr_lookbook',
+			'type'        => 'text',
+			'label'       => __( 'Hero note 1', 'samina-rasul' ),
+			'description' => __( 'The three short lines under the heading. Leave one empty to drop it.', 'samina-rasul' ),
+			'default'     => __( 'Made to measure', 'samina-rasul' ),
+		),
+		'sr_lookbook_meta_2'        => array(
+			'section' => 'sr_lookbook',
+			'type'    => 'text',
+			'label'   => __( 'Hero note 2', 'samina-rasul' ),
+			'default' => __( '7–9 week atelier time', 'samina-rasul' ),
+		),
+		'sr_lookbook_meta_3'        => array(
+			'section' => 'sr_lookbook',
+			'type'    => 'text',
+			'label'   => __( 'Hero note 3', 'samina-rasul' ),
+			'default' => __( 'Hand-embellished couture', 'samina-rasul' ),
+		),
+		'sr_lookbook_manifesto'     => array(
+			'section'     => 'sr_lookbook',
+			'type'        => 'html',
+			'label'       => __( 'Manifesto line', 'samina-rasul' ),
+			'description' => __( 'The large line under the hero. &lt;em&gt; for italics.', 'samina-rasul' ),
+			'default'     => __( 'Every piece is meticulously handcrafted for <em>one occasion,</em> and <em>one person.</em>', 'samina-rasul' ),
+		),
+		'sr_lookbook_badge'         => array(
+			'section' => 'sr_lookbook',
+			'type'    => 'text',
+			'label'   => __( 'Badge on each photograph', 'samina-rasul' ),
+			'default' => __( 'Made to order', 'samina-rasul' ),
+		),
+		'sr_lookbook_cta'           => array(
+			'section' => 'sr_lookbook',
+			'type'    => 'text',
+			'label'   => __( 'Link label on each piece', 'samina-rasul' ),
+			'default' => __( 'View bridal set', 'samina-rasul' ),
+		),
 	);
 
 	return $fields;
@@ -306,6 +373,30 @@ function sr_home_text( $id ) {
  * @param string $size Registered image size.
  * @return string Image URL, or '' when absent.
  */
+/**
+ * The attachment id behind an image setting.
+ *
+ * For callers that hand the choice to something else which does its own
+ * rendering - a category card that already knows how to size and lazy-load its
+ * own picture - rather than wanting markup or a bare URL back.
+ *
+ * @param string $id Setting ID.
+ * @return int Attachment id, or 0 when unset or no longer in the library.
+ */
+function sr_home_image_id( $id ) {
+	$fields = sr_home_fields();
+
+	if ( ! isset( $fields[ $id ] ) ) {
+		return 0;
+	}
+
+	$attachment_id = (int) get_theme_mod( $id, 0 );
+
+	// A deleted attachment leaves the id behind in the theme mod; returning it
+	// would render nothing and skip the fallback the caller has.
+	return ( $attachment_id > 0 && wp_get_attachment_image_url( $attachment_id ) ) ? $attachment_id : 0;
+}
+
 function sr_home_image_url( $id, $size = 'full' ) {
 	$fields = sr_home_fields();
 
@@ -492,8 +583,8 @@ function sr_register_homepage_customizer( $wp_customize ) {
 	$wp_customize->add_panel(
 		'sr_homepage',
 		array(
-			'title'       => __( 'Homepage Content', 'samina-rasul' ),
-			'description' => __( 'Text and imagery for the homepage. Leave a field untouched to keep the copy the theme shipped with.', 'samina-rasul' ),
+			'title'       => __( 'Site Content', 'samina-rasul' ),
+			'description' => __( 'Text and imagery for the pages the theme lays out itself. Leave a field untouched to keep the copy the theme shipped with. Contact details and the deposit terms live under WooCommerce → Settings → General.', 'samina-rasul' ),
 			'priority'    => 30,
 		)
 	);
@@ -505,6 +596,7 @@ function sr_register_homepage_customizer( $wp_customize ) {
 		'sr_home_collections' => __( 'Featured collections', 'samina-rasul' ),
 		'sr_home_formals'     => __( 'Formals section', 'samina-rasul' ),
 		'sr_home_bridals'     => __( 'Bridals section', 'samina-rasul' ),
+		'sr_lookbook'         => __( 'Bridals lookbook page', 'samina-rasul' ),
 	);
 
 	$priority = 10;

@@ -3,35 +3,18 @@
 // Placeholder names/labels marked (Sample) — replaced when the real catalog arrives.
 // Run via: wp eval-file seed-2-products.php
 
-function sr_seed_terms( $taxonomy, $names ) {
-	$ids = array();
-	foreach ( $names as $name ) {
-		$term = term_exists( $name, $taxonomy );
-		if ( ! $term ) {
-			$term = wp_insert_term( $name, $taxonomy );
-		}
-		$ids[ $name ] = (int) ( is_array( $term ) ? $term['term_id'] : $term );
-	}
-	return $ids;
-}
+require_once __DIR__ . '/seed-lib.php';
 
-function sr_seed_attr( $taxonomy, $options, $for_variation = true ) {
-	sr_seed_terms( $taxonomy, $options );
-	$attr = new WC_Product_Attribute();
-	$attr->set_id( wc_attribute_taxonomy_id_by_name( str_replace( 'pa_', '', $taxonomy ) ) );
-	$attr->set_name( $taxonomy );
-	$attr->set_options( array_map( function ( $n ) use ( $taxonomy ) {
-		return (int) get_term_by( 'name', $n, $taxonomy )->term_id;
-	}, $options ) );
-	$attr->set_visible( true );
-	$attr->set_variation( $for_variation );
-	return $attr;
-}
-
-function sr_seed_assign( $product_id, $category_slug, $collection_slug, $delivery ) {
-	wp_set_object_terms( $product_id, $category_slug, 'product_cat' );
-	wp_set_object_terms( $product_id, $collection_slug, 'sr_collection' );
-	update_post_meta( $product_id, '_sr_delivery_time', $delivery );
+/*
+ * These samples predate the real catalogue and their SKUs collide with it, so
+ * running this on a store that already has products would file "(Sample)" names
+ * and placeholder prices against real pieces. seed-5-catalog.php is what builds
+ * the catalogue now; this is kept only for a scratch install.
+ *
+ * Opt in explicitly: SR_SEED_SAMPLES=1 wp eval-file tools/seed/seed-2-products.php
+ */
+if ( '1' !== getenv( 'SR_SEED_SAMPLES' ) ) {
+	WP_CLI::error( 'Sample products are superseded by seed-5-catalog.php. Set SR_SEED_SAMPLES=1 to seed them anyway.' );
 }
 
 $sizes = array( 'XS', 'S', 'M', 'ML', 'L', 'XL', 'Customized' );
@@ -93,12 +76,15 @@ $p = new WC_Product_Variable();
 $p->set_name( 'Ujala Formal UJ-003 (Sample)' );
 $p->set_sku( 'UJ-003' );
 $p->set_description( 'Sample product — four distinct fabric/embellishment combinations, each with its own absolute price (not additive). Combo names are placeholders pending real catalog data.' );
-$p->set_attributes( array( sr_seed_attr( 'pa_fabric', array_keys( $combo_prices ) ) ) );
+// pa_size alongside pa_fabric, or the customer has no way to state a size and
+// the size guide never opens. Left as "any" on each variation: size does not
+// move the price, so four variations do the work of twenty-eight.
+$p->set_attributes( array( sr_seed_attr( 'pa_fabric', array_keys( $combo_prices ) ), sr_seed_attr( 'pa_size', $sizes ) ) );
 $id = $p->save();
 foreach ( $combo_prices as $combo => $price ) {
 	$v = new WC_Product_Variation();
 	$v->set_parent_id( $id );
-	$v->set_attributes( array( 'pa_fabric' => sanitize_title( $combo ) ) );
+	$v->set_attributes( array( 'pa_fabric' => sanitize_title( $combo ), 'pa_size' => '' ) );
 	$v->set_regular_price( $price );
 	$v->save();
 }

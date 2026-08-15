@@ -235,28 +235,39 @@ function sr_shop_url() {
  * @param string $tone     Placeholder tone, 'warm' or 'deep'.
  * @return string Escaped markup.
  */
-function sr_term_card_media( $slug, $taxonomy, $tone = 'warm' ) {
-	$term = get_term_by( 'slug', $slug, $taxonomy );
+function sr_term_card_media( $slug, $taxonomy, $tone = 'warm', $override_id = 0 ) {
+	/*
+	 * The Customizer field wins when it is set, so a card on the home page can
+	 * be given its own photograph without changing the picture that heads the
+	 * category archive - the two are different crops of a different job. Left
+	 * empty, the category's own image is used and the pair stay in step, which
+	 * is the sensible default and the one that needs no decision.
+	 */
+	$image_id = (int) $override_id;
 
-	if ( $term && ! is_wp_error( $term ) ) {
-		$image_id = (int) get_term_meta( $term->term_id, 'thumbnail_id', true );
-		if ( $image_id > 0 ) {
-			$image = wp_get_attachment_image(
-				$image_id,
-				'large',
-				false,
-				array(
-					'class'   => 'sr-route__img',
-					'alt'     => '',
-					'loading' => 'lazy',
-					// Cards are a third of the content width on desktop; without this
-					// the browser assumes 100vw and pulls a needlessly large file.
-					'sizes'   => '(max-width: 700px) 100vw, (max-width: 1200px) 33vw, 380px',
-				)
-			);
-			if ( $image ) {
-				return $image;
-			}
+	if ( $image_id <= 0 ) {
+		$term = get_term_by( 'slug', $slug, $taxonomy );
+		if ( $term && ! is_wp_error( $term ) ) {
+			$image_id = (int) get_term_meta( $term->term_id, 'thumbnail_id', true );
+		}
+	}
+
+	if ( $image_id > 0 ) {
+		$image = wp_get_attachment_image(
+			$image_id,
+			'large',
+			false,
+			array(
+				'class'   => 'sr-route__img',
+				'alt'     => '',
+				'loading' => 'lazy',
+				// Cards are a third of the content width on desktop; without this
+				// the browser assumes 100vw and pulls a needlessly large file.
+				'sizes'   => '(max-width: 700px) 100vw, (max-width: 1200px) 33vw, 380px',
+			)
+		);
+		if ( $image ) {
+			return $image;
 		}
 	}
 
@@ -963,27 +974,13 @@ function sr_trust_signals() {
  */
 function sr_single_specs() {
 	global $product;
-	if ( ! $product instanceof WC_Product ) {
-		return;
-	}
 
 	$rows = '';
-	foreach ( $product->get_attributes() as $attribute ) {
-		if ( ! $attribute->get_visible() || $attribute->get_variation() || 'pa_size' === $attribute->get_name() ) {
-			continue;
-		}
-		$values = wc_get_product_terms( $product->get_id(), $attribute->get_name(), array( 'fields' => 'names' ) );
-		if ( ! $values ) {
-			// A custom (non-taxonomy) attribute stores its values on the product.
-			$values = $attribute->get_options();
-		}
-		if ( ! $values ) {
-			continue;
-		}
+	foreach ( sr_product_spec_rows( $product ) as $spec ) {
 		$rows .= sprintf(
 			'<div class="sr-spec"><dt>%s</dt><dd>%s</dd></div>',
-			esc_html( wc_attribute_label( $attribute->get_name() ) ),
-			esc_html( implode( ', ', $values ) )
+			esc_html( $spec['label'] ),
+			esc_html( $spec['value'] )
 		);
 	}
 
@@ -993,6 +990,113 @@ function sr_single_specs() {
 
 	echo '<dl class="sr-specs">' . $rows . '</dl>'; // phpcs:ignore WordPress.Security.EscapeOutput -- assembled from escaped parts above.
 }
+
+/**
+ * A product's specification rows, as label/value pairs.
+ *
+ * Anything the customer chooses is excluded - size, and any attribute used for
+ * variations - because those are selectors, not specifications. The delivery
+ * time is appended as a final row: it is the question every made-to-order
+ * shopper asks, and it lives in post meta rather than an attribute.
+ *
+ * Shared by the product page and the bridal lookbook so the two never describe
+ * the same garment differently.
+ *
+ * @param WC_Product|null $product Product to describe.
+ * @param int             $limit   Maximum rows to return, 0 for all.
+ * @return array<int, array{label: string, value: string}>
+ */
+function sr_product_spec_rows( $product, $limit = 0 ) {
+	if ( ! $product instanceof WC_Product ) {
+		return array();
+	}
+
+	$specs = array();
+
+	foreach ( $product->get_attributes() as $attribute ) {
+		if ( ! $attribute->get_visible() || $attribute->get_variation() || 'pa_size' === $attribute->get_name() ) {
+			continue;
+		}
+
+		$values = wc_get_product_terms( $product->get_id(), $attribute->get_name(), array( 'fields' => 'names' ) );
+		if ( ! $values ) {
+			// A custom (non-taxonomy) attribute stores its values on the product.
+			$values = $attribute->get_options();
+		}
+		if ( ! $values ) {
+			continue;
+		}
+
+		$specs[] = array(
+			'label' => wc_attribute_label( $attribute->get_name() ),
+			'value' => implode( ', ', $values ),
+		);
+	}
+
+	$delivery = trim( (string) get_post_meta( $product->get_id(), '_sr_delivery_time', true ) );
+	if ( '' !== $delivery ) {
+		$specs[] = array(
+			'label' => __( 'Atelier time', 'samina-rasul' ),
+			'value' => $delivery,
+		);
+	}
+
+	return $limit > 0 ? array_slice( $specs, 0, $limit ) : $specs;
+}
+
+/**
+ * Closing call to action for a shop archive.
+ *
+ * Every collection page ends on a dead stop otherwise: the grid runs out and
+ * there is nothing to do next. Made to order means the answer to "none of
+ * these are quite right" is a conversation, not another page of products.
+ *
+ * @param string $eyebrow Small line above the heading.
+ * @param string $heading Display heading; <em> is honoured.
+ * @param string $label   Button label.
+ * @return void
+ */
+function sr_shop_cta( $eyebrow = '', $heading = '', $label = '' ) {
+	$eyebrow = '' !== $eyebrow ? $eyebrow : __( 'Bespoke', 'samina-rasul' );
+	$heading = '' !== $heading ? $heading : __( 'Envisioning something <em>entirely your own?</em>', 'samina-rasul' );
+	$label   = '' !== $label ? $label : __( 'Start a consultation', 'samina-rasul' );
+
+	printf(
+		'<section class="sr-shop-cta">' .
+		'<span class="sr-shop-cta__art" aria-hidden="true">%1$s</span>' .
+		'<div class="sr-shop-cta__inner" data-sr-reveal><span class="sr-eyebrow">%2$s</span><h2>%3$s</h2>' .
+		'<a class="button" href="%4$s"><span>%5$s</span></a></div></section>',
+		sr_arch_motif_svg(), // phpcs:ignore WordPress.Security.EscapeOutput -- static, hand-written inline SVG.
+		esc_html( $eyebrow ),
+		wp_kses( $heading, array( 'em' => array(), 'br' => array() ) ),
+		esc_url( home_url( '/consultations/' ) ),
+		esc_html( $label )
+	);
+}
+
+/**
+ * Close every product archive with the consultation invitation.
+ *
+ * Bridals is excluded because its own template ends on a bespoke CTA already,
+ * and two in a row reads as a mistake.
+ *
+ * @return void
+ */
+function sr_shop_loop_cta() {
+	if ( is_tax( 'product_cat', 'bridals' ) ) {
+		return;
+	}
+
+	sr_shop_cta();
+}
+/*
+ * Priority 40, not 30. Storefront hooks woocommerce_pagination at 30 too, and
+ * this callback is registered first (the child theme's functions.php loads
+ * before the parent's template-hooks.php), so at equal priority the closing CTA
+ * printed above the pager - page 2 sat below the "start a consultation" block
+ * that is supposed to end the page.
+ */
+add_action( 'woocommerce_after_shop_loop', 'sr_shop_loop_cta', 40 );
 add_action( 'woocommerce_single_product_summary', 'sr_single_specs', 21 );
 
 // On the product page, directly under the add-to-cart area.
@@ -1978,9 +2082,13 @@ add_action( 'wp_loaded', function () {
 	remove_action( 'woocommerce_single_product_summary', 'woocommerce_template_single_sharing', 50 );
 
 	/*
-	 * No tab strip and no accordion under the summary. Description, the spec
-	 * table and the order terms are all stated once in the summary itself, so
-	 * the panels only repeated them; Reviews is empty on every product.
+	 * No tab strip and no accordion under the summary: the spec table and the
+	 * order terms are stated once in the summary itself, and Reviews is empty on
+	 * every product.
+	 *
+	 * The description is not dropped with them - it is the piece's whole story,
+	 * and behind a tab nobody opened it may as well not have been written.
+	 * sr_single_description() prints it plainly in the tabs' place.
 	 */
 	remove_action( 'woocommerce_after_single_product_summary', 'woocommerce_output_product_data_tabs', 10 );
 
@@ -2173,6 +2281,68 @@ function sr_single_price() {
 add_action( 'woocommerce_single_product_summary', 'sr_single_price', 10 );
 
 /**
+ * Related products: eight, four across, rather than WooCommerce's three.
+ *
+ * Three pieces read as the tail end of a row that ran out rather than a
+ * deliberate selection, and with 17 formals in the catalogue there is plenty to
+ * show. Eight fills two clean rows at the width the grid below settles on.
+ *
+ * @param array $args Query args.
+ * @return array
+ */
+function sr_related_products_args( $args ) {
+	$args['posts_per_page'] = 8;
+	$args['columns']        = 4;
+
+	return $args;
+}
+add_filter( 'woocommerce_output_related_products_args', 'sr_related_products_args', 20 );
+
+/**
+ * The full description, under the price.
+ *
+ * WooCommerce prints the short description here, which is the one-line summary
+ * meant for a card in a grid. On the product page itself there is room for the
+ * whole thing, and the paragraph naming the handwork is the reason someone is
+ * on this page - so the full description takes the slot and the short one stays
+ * what it is for, the grids and the search results.
+ *
+ * Deliberately not a tab and not an accordion below the gallery: a panel that
+ * has to be opened is a panel that is not read, and a second description under
+ * the photographs describes the same piece twice.
+ *
+ * Falls back to the short description when a product has no long one, so a
+ * half-filled product still says something.
+ *
+ * @return void
+ */
+function sr_single_description() {
+	global $product;
+	if ( ! $product instanceof WC_Product ) {
+		return;
+	}
+
+	$copy = (string) $product->get_description();
+	if ( '' === trim( wp_strip_all_tags( $copy ) ) ) {
+		$copy = (string) $product->get_short_description();
+	}
+	if ( '' === trim( wp_strip_all_tags( $copy ) ) ) {
+		return;
+	}
+
+	printf(
+		'<div class="sr-product-copy woocommerce-product-details__short-description">%s</div>',
+		wp_kses_post( wc_format_content( $copy ) )
+	);
+}
+add_action( 'wp_loaded', function () {
+	// Priority 20 is the slot the short description had; the reading order of
+	// the summary column is unchanged, only which field fills it.
+	remove_action( 'woocommerce_single_product_summary', 'woocommerce_template_single_excerpt', 20 );
+	add_action( 'woocommerce_single_product_summary', 'sr_single_description', 20 );
+} );
+
+/**
  * Breadcrumb separator: a hairline rule drawn by CSS rather than the "/" glyph.
  *
  * Storefront's own delimiter is styled by its icon font, which this theme does
@@ -2213,6 +2383,29 @@ add_action( 'wp_loaded', function () {
 function sr_atelier_note() {
 	$lead = (string) get_post_meta( get_the_ID(), '_sr_delivery_time', true );
 	$lead = '' !== trim( $lead ) ? $lead : __( '8-9 weeks', 'samina-rasul' );
+
+	/*
+	 * Every write-up in the catalogue ends its customisation block with "Prices
+	 * may vary depending on fabric selection", and the storefront said it
+	 * nowhere. It belongs here rather than repeated in twenty-three
+	 * descriptions - but only where it is true. On a piece with one price and no
+	 * fabric choice it would be an invented caveat, so it is shown only when the
+	 * page actually offers a choice that moves the figure.
+	 */
+	$product      = wc_get_product( get_the_ID() );
+	$price_varies = false;
+
+	if ( $product instanceof WC_Product ) {
+		/*
+		 * Being a variable product is not enough. Almost every formal is variable
+		 * so the customer can state a size, and size does not move the figure - so
+		 * the test is whether the variation prices actually differ, not whether
+		 * variations exist.
+		 */
+		$price_varies = ( $product->is_type( 'variable' )
+				&& (float) $product->get_variation_price( 'min', true ) !== (float) $product->get_variation_price( 'max', true ) )
+			|| ( function_exists( 'sr_get_addons' ) && sr_get_addons( $product->get_id(), 'fabric' ) );
+	}
 	?>
 	<aside class="sr-atelier-note">
 		<svg class="sr-atelier-note__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
@@ -2228,6 +2421,10 @@ function sr_atelier_note() {
 					'<strong>' . esc_html( $lead ) . '</strong>',
 					'<strong>' . esc_html__( '50% deposit', 'samina-rasul' ) . '</strong>'
 				);
+
+				if ( $price_varies ) {
+					echo ' ' . esc_html__( 'Prices vary with the fabric selected.', 'samina-rasul' );
+				}
 				?>
 			</p>
 		</div>
@@ -2297,11 +2494,23 @@ function sr_saved_shortcode() {
 	ob_start();
 	?>
 	<section class="sr-saved" data-sr-saved data-sr-endpoint="<?php echo esc_url( rest_url( 'samina/v1/search' ) ); ?>">
+		<header class="sr-saved__head" data-sr-reveal>
+			<span class="sr-saved__art" aria-hidden="true"><?php echo sr_arch_motif_svg(); // phpcs:ignore WordPress.Security.EscapeOutput -- static inline SVG. ?></span>
+			<span class="sr-eyebrow"><?php esc_html_e( 'Your selection', 'samina-rasul' ); ?></span>
+			<h2 class="sr-saved__title"><?php echo wp_kses_post( __( 'Pieces you have <em>set aside</em>', 'samina-rasul' ) ); ?></h2>
+			<p class="sr-saved__lede"><?php esc_html_e( 'Kept on this device, so you can return to a piece while you decide. Nothing here is reserved — a made-to-order piece is only held once the order is confirmed.', 'samina-rasul' ); ?></p>
+		</header>
+
 		<div class="sr-saved__results" data-sr-saved-results aria-live="polite"></div>
-		<p class="sr-saved__empty" data-sr-saved-empty>
-			<?php esc_html_e( 'Nothing saved yet. Tap the heart on any piece and it will wait for you here.', 'samina-rasul' ); ?>
-			<a href="<?php echo esc_url( sr_shop_url() ); ?>"><?php esc_html_e( 'Browse the collection', 'samina-rasul' ); ?></a>
-		</p>
+
+		<div class="sr-saved__empty" data-sr-saved-empty>
+			<span class="sr-saved__empty-mark" aria-hidden="true"><?php echo sr_star_svg( 'sr-star sr-star--crest' ); // phpcs:ignore WordPress.Security.EscapeOutput -- static inline SVG. ?></span>
+			<p><?php esc_html_e( 'Nothing saved yet. Tap the heart on any piece and it will wait for you here.', 'samina-rasul' ); ?></p>
+			<div class="sr-saved__empty-actions">
+				<a class="button" href="<?php echo esc_url( sr_shop_url() ); ?>"><span><?php esc_html_e( 'Browse the collection', 'samina-rasul' ); ?></span></a>
+				<a class="button sr-ghost" href="<?php echo esc_url( sr_term_url( 'bridals', 'product_cat' ) ); ?>"><span><?php esc_html_e( 'See the Bridals', 'samina-rasul' ); ?></span></a>
+			</div>
+		</div>
 	</section>
 	<?php
 	return (string) ob_get_clean();
@@ -2780,3 +2989,238 @@ function sr_consultation_shortcode() {
 	return (string) ob_get_clean();
 }
 add_shortcode( 'sr_consultation', 'sr_consultation_shortcode' );
+
+/**
+ * Pages the theme depends on, created if they are missing.
+ *
+ * The consultations page is a shortcode in an otherwise empty page, and it was
+ * only ever created by hand in wp-admin. Pages are database rows and the deploy
+ * syncs no database, so it existed locally and 404'd on the live site. Anything
+ * the theme links to unconditionally has to be able to create itself.
+ *
+ * Idempotent: matches on slug, restores a trashed page rather than making a
+ * duplicate, and does nothing when the page is already published.
+ *
+ * @return void
+ */
+function sr_ensure_pages() {
+	$pages = array(
+		'consultations' => array(
+			'title'   => __( 'Consultations', 'samina-rasul' ),
+			'content' => '[sr_consultation]',
+		),
+		'saved'         => array(
+			'title'   => __( 'Saved', 'samina-rasul' ),
+			'content' => '[sr_saved]',
+		),
+	);
+
+	foreach ( $pages as $slug => $page ) {
+		$existing = get_page_by_path( $slug );
+
+		if ( $existing instanceof WP_Post ) {
+			// A trashed page still owns the slug, so publishing it back is the
+			// only way the URL resolves again without a duplicate.
+			if ( 'publish' !== $existing->post_status ) {
+				wp_update_post(
+					array(
+						'ID'          => $existing->ID,
+						'post_status' => 'publish',
+					)
+				);
+			}
+			continue;
+		}
+
+		wp_insert_post(
+			array(
+				'post_type'      => 'page',
+				'post_name'      => $slug,
+				'post_title'     => $page['title'],
+				'post_content'   => $page['content'],
+				'post_status'    => 'publish',
+				'comment_status' => 'closed',
+				'ping_status'    => 'closed',
+			)
+		);
+	}
+}
+
+/*
+ * Run once per theme version rather than on every request: the check is three
+ * queries, and a released theme should not pay for them on every page view.
+ * Bumping SR_PAGES_VERSION re-runs it after the list above changes.
+ */
+define( 'SR_PAGES_VERSION', '1' );
+add_action( 'admin_init', function () {
+	if ( get_option( 'sr_pages_version' ) === SR_PAGES_VERSION ) {
+		return;
+	}
+	sr_ensure_pages();
+	update_option( 'sr_pages_version', SR_PAGES_VERSION );
+} );
+add_action( 'after_switch_theme', 'sr_ensure_pages' );
+
+/**
+ * Comments are off, so nothing about them renders.
+ *
+ * Storefront calls comments_template() whenever comments are open OR the post
+ * reports any comments, and the second half of that test is what surfaced the
+ * "Comments are closed." notice on ordinary pages: Action Scheduler stores its
+ * logs as rows in the comments table, keyed by action id, and those ids collide
+ * with page ids — so get_comments_number() counted scheduler logs as comments.
+ *
+ * Overrides Storefront's pluggable original (the child theme loads first).
+ *
+ * @return void
+ */
+function storefront_display_comments() {
+}
+
+/*
+ * Belt and braces: with comment support removed, WordPress stops offering the
+ * discussion box in the editor and no other template can render a comment form
+ * for these post types. Products keep support — WooCommerce reviews are
+ * comments, and removing it would remove reviews.
+ */
+add_action( 'init', function () {
+	remove_post_type_support( 'page', 'comments' );
+	remove_post_type_support( 'page', 'trackbacks' );
+	remove_post_type_support( 'post', 'comments' );
+	remove_post_type_support( 'post', 'trackbacks' );
+}, 20 );
+
+/**
+ * The atelier arch: a Mughal cusped arch over a hairline horizon.
+ *
+ * A second house mark, distinct from sr_ornament_svg(). The rosette had ended
+ * up on the values band, the craft section, the empty cart and every archive
+ * CTA at once, which is the point at which a motif stops being a signature and
+ * starts being wallpaper. The arch is the doorway figure from the campaign
+ * photography, so it carries the same vocabulary without repeating the mark.
+ *
+ * @return string Inline SVG.
+ */
+function sr_arch_motif_svg() {
+	return '<svg class="sr-arch" viewBox="0 0 240 180" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+		<g stroke="currentColor" stroke-width="1.1" stroke-linecap="round">
+			<path d="M60 172V86c0-33 27-60 60-60s60 27 60 60v86"/>
+			<path d="M78 172V88c0-23 19-42 42-42s42 19 42 42v84"/>
+			<path d="M120 26c-9-9-9-17 0-26 9 9 9 17 0 26Z"/>
+			<path d="M20 172h200"/>
+			<path d="M96 172v-46c0-13 11-24 24-24s24 11 24 24v46"/>
+		</g>
+		<g fill="currentColor">
+			<circle cx="120" cy="112" r="3.4"/>
+			<circle cx="60" cy="86" r="2.2"/>
+			<circle cx="180" cy="86" r="2.2"/>
+		</g>
+		<path d="M40 152c26-14 54-21 80-21s54 7 80 21" stroke="currentColor" stroke-width="1" stroke-dasharray="3 7"/>
+	</svg>';
+}
+
+/**
+ * Contact form subjects, as slug => label.
+ *
+ * A fixed list rather than a free-text field, so the value can be validated
+ * against a whitelist before it reaches the mail subject line.
+ *
+ * @return array<string, string>
+ */
+function sr_contact_subjects() {
+	return array(
+		'general'     => __( 'General inquiry', 'samina-rasul' ),
+		'order'       => __( 'Order status', 'samina-rasul' ),
+		'appointment' => __( 'Studio appointment', 'samina-rasul' ),
+		'press'       => __( 'Press &amp; collaboration', 'samina-rasul' ),
+	);
+}
+
+/**
+ * Handle a contact form submission.
+ *
+ * Mirrors the newsletter handler: nonce, honeypot, whitelist, then a redirect
+ * carrying a status flag so a refresh never resubmits. The message is mailed to
+ * the site admin with the sender on Reply-To — the address is never used as
+ * From, which would fail SPF and land the mail in spam.
+ *
+ * @return void
+ */
+function sr_handle_contact() {
+	$back = wp_get_referer() ? wp_get_referer() : home_url( '/contact/' );
+
+	$redirect = function ( $status ) use ( $back ) {
+		wp_safe_redirect( add_query_arg( 'sr_contact', $status, remove_query_arg( 'sr_contact', $back ) ) . '#sr-contact-form' );
+		exit;
+	};
+
+	if ( ! isset( $_POST['sr_contact_nonce'] ) || ! wp_verify_nonce( sanitize_key( wp_unslash( $_POST['sr_contact_nonce'] ) ), 'sr_contact' ) ) {
+		$redirect( 'error' );
+	}
+
+	// Honeypot: a real visitor never fills this, bots usually do.
+	if ( ! empty( $_POST['sr_website'] ) ) {
+		$redirect( 'ok' ); // Silent success, so the bot learns nothing.
+	}
+
+	// One submission per address per minute, keyed by IP, to stop a flood.
+	$ip  = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '';
+	$key = 'sr_contact_' . md5( $ip );
+	if ( '' !== $ip && get_transient( $key ) ) {
+		$redirect( 'throttled' );
+	}
+
+	$name    = isset( $_POST['sr_name'] ) ? sanitize_text_field( wp_unslash( $_POST['sr_name'] ) ) : '';
+	$email   = isset( $_POST['sr_email'] ) ? sanitize_email( wp_unslash( $_POST['sr_email'] ) ) : '';
+	$phone   = isset( $_POST['sr_phone'] ) ? sanitize_text_field( wp_unslash( $_POST['sr_phone'] ) ) : '';
+	$subject = isset( $_POST['sr_subject'] ) ? sanitize_key( wp_unslash( $_POST['sr_subject'] ) ) : '';
+	$message = isset( $_POST['sr_message'] ) ? sanitize_textarea_field( wp_unslash( $_POST['sr_message'] ) ) : '';
+
+	$subjects = sr_contact_subjects();
+
+	if ( '' === $name || ! is_email( $email ) || '' === $message || ! isset( $subjects[ $subject ] ) ) {
+		$redirect( 'error' );
+	}
+
+	// Bound the payload so a single request cannot post a novel into the inbox.
+	$name    = mb_substr( $name, 0, 100 );
+	$phone   = mb_substr( $phone, 0, 40 );
+	$message = mb_substr( $message, 0, 4000 );
+
+	$body = sprintf(
+		/* translators: 1: name, 2: email, 3: phone, 4: subject, 5: message. */
+		__( "Name: %1\$s\nEmail: %2\$s\nPhone: %3\$s\nSubject: %4\$s\n\n%5\$s\n", 'samina-rasul' ),
+		$name,
+		$email,
+		'' !== $phone ? $phone : __( '(not given)', 'samina-rasul' ),
+		wp_strip_all_tags( $subjects[ $subject ] ),
+		$message
+	);
+
+	// The client inquiries inbox, not the administrator address - see
+	// samina-core/contact-details.php.
+	$inbox = function_exists( 'sr_contact_email' ) ? sr_contact_email() : get_option( 'admin_email' );
+
+	$sent = $inbox && wp_mail(
+		$inbox,
+		sprintf(
+			/* translators: 1: site name, 2: inquiry subject. */
+			__( '[%1$s] %2$s', 'samina-rasul' ),
+			get_bloginfo( 'name' ),
+			wp_strip_all_tags( $subjects[ $subject ] )
+		),
+		$body,
+		array( 'Reply-To: ' . $name . ' <' . $email . '>' )
+	);
+
+	if ( '' !== $ip ) {
+		set_transient( $key, 1, MINUTE_IN_SECONDS );
+	}
+
+	// 'unsent', not 'error': the submission was valid and the mail transport
+	// failed. Telling the visitor to check the fields would send them round a
+	// loop they cannot win.
+	$redirect( $sent ? 'ok' : 'unsent' );
+}
+add_action( 'admin_post_nopriv_sr_contact', 'sr_handle_contact' );
+add_action( 'admin_post_sr_contact', 'sr_handle_contact' );
