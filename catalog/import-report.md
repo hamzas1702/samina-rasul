@@ -1,6 +1,6 @@
 # Catalogue import report
 
-Generated 2026-08-15 10:29 UTC. Regenerated on every run.
+Generated 2026-08-15 10:31 UTC. Regenerated on every run.
 
 ## Blockers — need a decision
 
@@ -64,18 +64,18 @@ Generated 2026-08-15 10:29 UTC. Regenerated on every run.
 
 ### Site imagery
 
-- DK- formal & bridal.webp — attachment #285 — http://localhost:8787/wp-content/uploads/catalog/DK- formal & bridal.webp
-- ORPHAN (named like a product photo, but "DK" is not a SKU — check for a typo): DK-000.webp — attachment #286 — http://localhost:8787/wp-content/uploads/catalog/DK-000.webp
-- DK-001-7webp.webp — attachment #287 — http://localhost:8787/wp-content/uploads/catalog/DK-001-7webp.webp
-- DK-formal bridal.webp — attachment #288 — http://localhost:8787/wp-content/uploads/catalog/DK-formal bridal.webp
-- DK-formal bridal1.webp — attachment #289 — http://localhost:8787/wp-content/uploads/catalog/DK-formal bridal1.webp
-- UJ-004-9-.webp — attachment #290 — http://localhost:8787/wp-content/uploads/catalog/UJ-004-9-.webp
-- UJ-formals.webp — attachment #291 — http://localhost:8787/wp-content/uploads/catalog/UJ-formals.webp
-- UJ-formalss.webp — attachment #292 — http://localhost:8787/wp-content/uploads/catalog/UJ-formalss.webp
-- dhanak formals.webp — attachment #293 — http://localhost:8787/wp-content/uploads/catalog/dhanak formals.webp
-- dhanak.webp — attachment #294 — http://localhost:8787/wp-content/uploads/catalog/dhanak.webp
-- dhanak2.webp — attachment #295 — http://localhost:8787/wp-content/uploads/catalog/dhanak2.webp
-- dk 1 formals.webp — attachment #296 — http://localhost:8787/wp-content/uploads/catalog/dk 1 formals.webp
-- dk formals 2.webp — attachment #297 — http://localhost:8787/wp-content/uploads/catalog/dk formals 2.webp
-- dk formals.webp — attachment #298 — http://localhost:8787/wp-content/uploads/catalog/dk formals.webp
+- DK- formal & bridal.webp — attachment #310 — https://saminarasul.com/wp-content/uploads/catalog/DK- formal & bridal.webp
+- ORPHAN (named like a product photo, but "DK" is not a SKU — check for a typo): DK-000.webp — attachment #311 — https://saminarasul.com/wp-content/uploads/catalog/DK-000.webp
+- DK-001-7webp.webp — attachment #312 — https://saminarasul.com/wp-content/uploads/catalog/DK-001-7webp.webp
+- DK-formal bridal.webp — attachment #313 — https://saminarasul.com/wp-content/uploads/catalog/DK-formal bridal.webp
+- DK-formal bridal1.webp — attachment #314 — https://saminarasul.com/wp-content/uploads/catalog/DK-formal bridal1.webp
+- UJ-004-9-.webp — attachment #315 — https://saminarasul.com/wp-content/uploads/catalog/UJ-004-9-.webp
+- UJ-formals.webp — attachment #316 — https://saminarasul.com/wp-content/uploads/catalog/UJ-formals.webp
+- UJ-formalss.webp — attachment #317 — https://saminarasul.com/wp-content/uploads/catalog/UJ-formalss.webp
+- dhanak formals.webp — attachment #318 — https://saminarasul.com/wp-content/uploads/catalog/dhanak formals.webp
+- dhanak.webp — attachment #319 — https://saminarasul.com/wp-content/uploads/catalog/dhanak.webp
+- dhanak2.webp — attachment #320 — https://saminarasul.com/wp-content/uploads/catalog/dhanak2.webp
+- dk 1 formals.webp — attachment #321 — https://saminarasul.com/wp-content/uploads/catalog/dk 1 formals.webp
+- dk formals 2.webp — attachment #322 — https://saminarasul.com/wp-content/uploads/catalog/dk formals 2.webp
+- dk formals.webp — attachment #323 — https://saminarasul.com/wp-content/uploads/catalog/dk formals.webp
 
