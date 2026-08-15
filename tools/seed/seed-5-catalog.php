@@ -228,11 +228,24 @@ foreach ( array_keys( $sr_rows ) as $sr_known ) {
 	$sr_sku_lookup[ sr_sku_key( $sr_known ) ] = $sr_known;
 }
 
-if ( is_dir( $sr_src_dir ) ) {
+/*
+ * Where the photographs are read from.
+ *
+ * Locally they are authored in catalog/images/ and copied into uploads/ here.
+ * On the server there is no catalog/images/ - deploy-catalog.sh rsyncs them
+ * straight into uploads/catalog/, because that is where they have to end up and
+ * shipping them twice would be 23 MB of waste. Falling back to the uploads
+ * directory is what makes the same script work in both places; without it the
+ * server indexed nothing and every product came out with no photographs.
+ */
+$sr_scan_dir = is_dir( $sr_src_dir ) ? $sr_src_dir : $sr_img_dir;
+$sr_copying  = ( $sr_scan_dir !== $sr_img_dir );
+
+if ( is_dir( $sr_scan_dir ) ) {
 	wp_mkdir_p( $sr_img_dir );
 
-	foreach ( (array) scandir( $sr_src_dir ) as $file ) {
-		if ( '.' === $file[0] || ! is_file( $sr_src_dir . '/' . $file ) ) {
+	foreach ( (array) scandir( $sr_scan_dir ) as $file ) {
+		if ( '.' === $file[0] || ! is_file( $sr_scan_dir . '/' . $file ) ) {
 			continue;
 		}
 		if ( ! preg_match( '/\.(jpe?g|png|webp)$/i', $file ) ) {
@@ -241,9 +254,11 @@ if ( is_dir( $sr_src_dir ) ) {
 
 		// Copy into uploads/ only when it is not already there and identical, so
 		// a re-run does not rewrite 23 MB of photographs.
-		$dest = $sr_img_dir . '/' . $file;
-		if ( ! is_file( $dest ) || filesize( $dest ) !== filesize( $sr_src_dir . '/' . $file ) ) {
-			copy( $sr_src_dir . '/' . $file, $dest );
+		if ( $sr_copying ) {
+			$dest = $sr_img_dir . '/' . $file;
+			if ( ! is_file( $dest ) || filesize( $dest ) !== filesize( $sr_scan_dir . '/' . $file ) ) {
+				copy( $sr_scan_dir . '/' . $file, $dest );
+			}
 		}
 
 		if ( preg_match( '/^(.+)-(\d+)\.(?:jpe?g|png|webp)$/i', $file, $m ) ) {

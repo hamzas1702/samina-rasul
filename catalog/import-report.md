@@ -1,6 +1,6 @@
 # Catalogue import report
 
-Generated 2026-08-15 09:20 UTC. Regenerated on every run.
+Generated 2026-08-15 10:29 UTC. Regenerated on every run.
 
 ## Blockers — need a decision
 
