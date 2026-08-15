@@ -2325,12 +2325,20 @@ html {
 		radial-gradient(130% 110% at 75% 90%, rgba(20, 8, 10, 0.55), transparent 65%),
 		linear-gradient(160deg, #5d2830 0%, var(--sr-burgundy) 55%, #35161a 100%);
 }
-.sr-ph .sr-ornament {
+/* Every house mark that can stand in for a missing photograph, not just the
+   ornament. The arch was rendering at its natural size in full-strength ink,
+   because only .sr-ornament was ever given a width here. */
+.sr-ph .sr-ornament,
+.sr-ph .sr-arch,
+.sr-ph .sr-weave {
 	width: min(70%, 420px);
+	height: auto;
 	color: var(--sr-burgundy);
 	opacity: 0.14;
 }
-.sr-ph--deep .sr-ornament {
+.sr-ph--deep .sr-ornament,
+.sr-ph--deep .sr-arch,
+.sr-ph--deep .sr-weave {
 	color: var(--sr-cream);
 	opacity: 0.12;
 }
@@ -4734,7 +4742,10 @@ ul.products li.product .sr-card-media__link { position: relative; z-index: 2; }
 	margin: 0;
 	color: var(--sr-ink-55);
 }
-.sr-saved__empty a { margin-left: .4em; color: var(--sr-burgundy); }
+/* Written for an inline text link in the empty message. Excluding buttons
+   because it also caught the two below it, painting burgundy label text onto
+   the burgundy fill of the primary button - a solid block with nothing on it. */
+.sr-saved__empty a:not(.button) { margin-left: .4em; color: var(--sr-burgundy); }
 /* Page content underlines its links; the whole card is one link. */
 .sr-saved .sr-search-card,
 .sr-saved .sr-search-card * { text-decoration: none; }
@@ -6728,7 +6739,32 @@ a.sr-contact__value:hover { color: var(--sr-sand); }
    borrowed from somewhere else.
    ======================================================================== */
 
-.sr-about { overflow-x: clip; }
+/* Full bleed, contained content.
+
+   The page sits inside Storefront's .col-full, which caps at 1320px - so the
+   burgundy grounds and the photographs stopped short of the viewport edge with
+   a strip of page background either side, which is not what a bleed is. The
+   whole page breaks out to the viewport, and each section's own inner wrapper
+   brings the text back to --sr-content-max, exactly the arrangement the
+   homepage uses: colour and image to the edge, words on the same measure as
+   the rest of the site.
+
+   Safe against the scrollbar because body already carries overflow-x: clip. */
+.sr-about {
+	width: 100vw;
+	margin-left: calc(50% - 50vw);
+	overflow-x: clip;
+}
+
+/* Every section's inner measure. The hero and the principles band carry the
+   full content width; the manifesto, the craft notes and the founder quote are
+   prose and keep their own reading measure, centred in whatever column they
+   are given rather than pinned to its edge. */
+.sr-about-hero__content,
+.sr-about-principles__inner {
+	width: min(100%, var(--sr-content-max));
+	margin-inline: auto;
+}
 
 /* --- Hero ------------------------------------------------------------- */
 .sr-about-hero {
@@ -6805,13 +6841,15 @@ a.sr-contact__value:hover { color: var(--sr-sand); }
 	background: var(--sr-cream);
 }
 .sr-about-craft__visual { position: relative; overflow: hidden; }
-.sr-about-craft__img,
-.sr-about-craft__visual .sr-ph {
+.sr-about-craft__img {
 	width: 100%;
 	height: 100%;
 	object-fit: cover;
 	display: block;
 }
+/* The placeholder positions itself (.sr-ph is absolute, inset to its frame);
+   giving it the image sizing on top of that fought its own rules. */
+.sr-about-craft__visual { min-height: 22rem; }
 .sr-about-craft__visual::after {
 	content: "";
 	position: absolute;
@@ -6836,10 +6874,13 @@ a.sr-contact__value:hover { color: var(--sr-sand); }
 .sr-about-craft__notes {
 	display: flex;
 	flex-direction: column;
+	align-items: center;
 	gap: clamp(3rem, 9vw, 8rem);
 	padding: var(--sr-section) var(--sr-gutter);
 }
-.sr-about-note { max-width: 34rem; }
+/* Centred as a block, left-aligned as text: on a full-bleed page this column
+   is half the viewport, and the notes would otherwise sit against the fold. */
+.sr-about-note { width: min(100%, 34rem); }
 .sr-about-note__num {
 	display: block;
 	margin-bottom: .8rem;
@@ -6887,24 +6928,24 @@ a.sr-contact__value:hover { color: var(--sr-sand); }
 	color: var(--sr-cream);
 	overflow: hidden;
 }
-/* The house name, outlined and oversized, sitting behind the words. Same
-   device as the footer wordmark. */
+/* The weave mark, sitting behind the words. Sized in its own right rather than
+   as a font, so it scales predictably and cannot overflow the section the way a
+   nowrap string does. */
 .sr-about-principles__art {
 	position: absolute;
 	top: 50%;
 	left: 50%;
 	transform: translate(-50%, -50%);
-	font-family: var(--sr-font-display);
-	font-style: italic;
-	font-size: clamp(6rem, 22vw, 20rem);
-	line-height: 1;
-	white-space: nowrap;
-	color: transparent;
-	-webkit-text-stroke: 1px var(--sr-cream-line);
+	width: min(78vw, 40rem);
+	max-width: none;
+	line-height: 0;
+	color: var(--sr-sand);
+	opacity: .13;
 	pointer-events: none;
 	user-select: none;
 	z-index: 0;
 }
+.sr-about-principles__art svg { width: 100%; height: auto; display: block; }
 .sr-about-principles__inner {
 	position: relative;
 	z-index: 1;
@@ -6945,6 +6986,12 @@ a.sr-contact__value:hover { color: var(--sr-sand); }
 	color: var(--sr-cream-70);
 }
 
+/* The closing CTA carries a top margin, which reads correctly elsewhere because
+   it separates two blocks on the page background. Here it followed a cream
+   section with another cream section, so the margin showed as a white band
+   through the middle of one continuous ground. */
+.sr-about .sr-shop-cta { margin-top: 0; }
+
 /* --- Founder ---------------------------------------------------------- */
 .sr-about-founder {
 	display: grid;
@@ -6955,8 +7002,7 @@ a.sr-contact__value:hover { color: var(--sr-sand); }
 	.sr-about-founder { grid-template-columns: 1fr 1fr; align-items: stretch; }
 }
 .sr-about-founder__visual { position: relative; overflow: hidden; min-height: 22rem; }
-.sr-about-founder__img,
-.sr-about-founder__visual .sr-ph {
+.sr-about-founder__img {
 	width: 100%;
 	height: 100%;
 	object-fit: cover;
@@ -6969,6 +7015,9 @@ a.sr-contact__value:hover { color: var(--sr-sand); }
 	flex-direction: column;
 	justify-content: center;
 }
+/* Same reasoning as the craft notes: the column runs to the viewport edge on a
+   bled page, and a quote set to that width stops being a quote. */
+.sr-about-founder__note > * { width: min(100%, 34rem); }
 .sr-about-founder__note .sr-eyebrow { color: var(--sr-burgundy); }
 .sr-about-founder__note blockquote {
 	margin: 1.2em 0 1.8em;

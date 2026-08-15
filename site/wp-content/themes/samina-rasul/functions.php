@@ -586,6 +586,57 @@ add_action( 'wp_footer', function () {
  *
  * @return string Inline SVG.
  */
+/**
+ * Weave motif: warp and weft on the bias, inside a bounded circle.
+ *
+ * Drawn for the principles band on the about page, where an oversized outlined
+ * wordmark used to sit. That device belongs to the footer, and repeating it
+ * behind body copy read as a watermark someone forgot to remove - it fought the
+ * text it was meant to sit behind and broke out of the section on narrow
+ * screens because a nowrap string cannot be made to fit.
+ *
+ * A lattice is the honest image for this section: cloth, before anything is
+ * done to it. Same construction as the other house marks - hairline strokes,
+ * currentColor, one viewBox, no fill - so it inherits colour and opacity from
+ * whatever it is placed on.
+ *
+ * @return string Inline SVG.
+ */
+function sr_weave_motif_svg() {
+	static $svg = null;
+	if ( null !== $svg ) {
+		return $svg;
+	}
+
+	// The lattice: two sets of parallel threads at right angles to each other,
+	// laid on the bias so the grid reads as woven rather than as graph paper.
+	$threads = '';
+	for ( $i = -12; $i <= 12; $i++ ) {
+		$offset   = $i * 16;
+		$threads .= '<line x1="' . ( 100 + $offset ) . '" y1="-60" x2="' . ( 100 + $offset ) . '" y2="260"/>';
+		$threads .= '<line x1="-60" y1="' . ( 100 + $offset ) . '" x2="260" y2="' . ( 100 + $offset ) . '"/>';
+	}
+
+	// Knots where the threads cross, thinning towards the edge of the circle.
+	$knots = '';
+	for ( $x = -2; $x <= 2; $x++ ) {
+		for ( $y = -2; $y <= 2; $y++ ) {
+			$knots .= '<circle cx="' . ( 100 + $x * 32 ) . '" cy="' . ( 100 + $y * 32 ) . '" r="1.4" fill="currentColor" stroke="none"/>';
+		}
+	}
+
+	$svg = '<svg class="sr-weave" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+		<defs><clipPath id="sr-weave-clip"><circle cx="100" cy="100" r="94"/></clipPath></defs>
+		<g clip-path="url(#sr-weave-clip)" stroke="currentColor" stroke-width="0.5" transform="rotate(45 100 100)">' . $threads . '</g>
+		<g clip-path="url(#sr-weave-clip)" transform="rotate(45 100 100)">' . $knots . '</g>
+		<circle cx="100" cy="100" r="94" stroke="currentColor" stroke-width="0.8"/>
+		<circle cx="100" cy="100" r="64" stroke="currentColor" stroke-width="0.4"/>
+		<path d="M100 22 L178 100 L100 178 L22 100 Z" stroke="currentColor" stroke-width="0.6"/>
+	</svg>';
+
+	return $svg;
+}
+
 function sr_ornament_svg() {
 	static $svg = null;
 	if ( null !== $svg ) {

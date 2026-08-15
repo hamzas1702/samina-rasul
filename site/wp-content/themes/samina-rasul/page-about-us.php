@@ -115,7 +115,7 @@ $sr_craft_blocks = array( 1, 2, 3 );
 	</section>
 
 	<section class="sr-about-principles">
-		<span class="sr-about-principles__art" aria-hidden="true"><?php echo esc_html( get_bloginfo( 'name' ) ); ?></span>
+		<span class="sr-about-principles__art" aria-hidden="true"><?php echo sr_weave_motif_svg(); // phpcs:ignore WordPress.Security.EscapeOutput -- static inline SVG. ?></span>
 
 		<div class="sr-about-principles__inner">
 			<h2 data-sr-reveal><?php echo wp_kses_post( sr_home_text( 'sr_about_pillars_heading' ) ); ?></h2>
