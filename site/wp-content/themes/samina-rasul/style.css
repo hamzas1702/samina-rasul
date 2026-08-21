@@ -1505,12 +1505,19 @@ ul.products::after { content: none; }
 	.sr-timeline::after { left: 5px; }
 	.sr-timeline__step { grid-template-columns: 1fr; }
 	.sr-timeline__marker { left: 5px; }
+	/* Clear the rail and its marker.
+	   The marker is a diamond rotated 45deg about left:5px, so it actually
+	   occupies roughly x=20 to x=40 - while the card box started at the
+	   container's own left edge, 25px. The card was laid over the marker by
+	   15px, which is what made the two look welded together. The offset lives
+	   on the step so the card's own padding stays even on all four sides. */
+	.sr-timeline__step { padding-left: 3.25rem; }
 	.sr-timeline__step:nth-child(odd) .sr-timeline__card,
 	.sr-timeline__step:nth-child(even) .sr-timeline__card {
 		grid-column: 1;
 		justify-self: start;
 		text-align: left;
-		padding-left: 2.4rem;
+		padding-left: 1.15rem;
 		max-width: none;
 	}
 	.sr-timeline__card { padding: 1.2rem 1.15rem 1.25rem; }
@@ -7726,4 +7733,248 @@ a.sr-contact__value:hover { color: var(--sr-sand); }
 	background-color: var(--sr-burgundy-soft);
 	border-color: var(--sr-burgundy-soft);
 	color: var(--sr-cream);
+}
+
+/* ============================================================
+   Mobile header — one row instead of two
+
+   It was a lockup row of five things (search, logo, saved, account, cart)
+   with the word MENU stranded on a second row below, which cost 133px of a
+   844px screen before the page began. Worse, the nav drawer inherited the
+   width of the centred flex item it lived in — 75px — so opening the menu
+   produced a column of wrapped links a third of the screen wide.
+
+   Now: the toggle is lifted out of the second row and pinned to the left of
+   the lockup row as a hamburger, the icons gather on the right, and the
+   second row collapses to nothing until the menu is actually open.
+   ============================================================ */
+@media (max-width: 767px) {
+	/* --- The lockup row ---------------------------------------------- */
+	.site-header .col-full {
+		gap: .15rem;
+		/* Room for the toggle, which is lifted out of the flow below. */
+		padding-left: 2.75rem;
+	}
+	.site-header .col-full .site-branding { order: 1; }
+	/* One cluster on the right, in the order they are reached for. */
+	.woocommerce-active .site-header .site-search,
+	.site-header .site-search { order: 2; }
+	.sr-header-icon--saved { order: 3; }
+	.sr-header-icon--account { order: 4; }
+	.site-header #site-header-cart { order: 5; }
+
+	.site-header .sr-header-icon,
+	.site-header .site-search button[type="submit"],
+	.site-header .cart-contents {
+		/* 40px keeps a legal touch target while four of them still fit
+		   beside the lockup on a 390px screen. */
+		min-width: 40px;
+		min-height: 40px;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+	}
+	.site-header .sr-header-icon svg,
+	.site-header .site-search button[type="submit"] svg,
+	.site-header .cart-contents svg { width: 20px; height: 20px; }
+
+	/* --- The toggle, lifted into the lockup row ----------------------- */
+	/* .site-header is position:sticky, so it is already the containing
+	   block; nothing else between here and it is positioned. */
+	.main-navigation .menu-toggle {
+		position: absolute;
+		top: 0;
+		left: var(--sr-gutter);
+		z-index: 2;
+		display: grid;
+		place-items: center;
+		width: 40px;
+		height: 57px;      /* the lockup row's height */
+		margin: 0;
+		padding: 0;
+		font-size: 0;      /* the word is replaced by the bars below */
+	}
+	.main-navigation .menu-toggle::before {
+		content: "";
+		display: block;
+		width: 20px;
+		height: 12px;
+		/* Storefront fills this pseudo-element with #333 for its own icon-font
+		   glyph; left alone it renders the bars as one solid block. */
+		background: transparent;
+		border-top: 1.5px solid currentColor;
+		border-bottom: 1.5px solid currentColor;
+		border-radius: 0;
+		transition: transform 220ms ease, border-color 160ms ease;
+	}
+	.main-navigation .menu-toggle::after {
+		content: "";
+		position: absolute;
+		width: 20px;
+		height: 1.5px;
+		background: currentColor;
+	}
+	/* Open: the bars cross. */
+	.main-navigation.toggled .menu-toggle::before {
+		border-top-color: transparent;
+		border-bottom-color: transparent;
+	}
+	.main-navigation.toggled .menu-toggle::after { transform: rotate(45deg); }
+	.main-navigation.toggled .menu-toggle::before {
+		height: 1.5px;
+		background: currentColor;
+		transform: rotate(-45deg);
+	}
+
+	/* --- The drawer --------------------------------------------------- */
+	/* Nothing at all until it is opened, so the header is one row tall. */
+	.storefront-primary-navigation {
+		border-top: 0;
+		padding-inline: 0;
+	}
+	.storefront-primary-navigation .col-full {
+		display: block;
+		padding-inline: 0;
+		/* Static, so the absolutely positioned toggle above resolves against
+		   .site-header rather than against this row - which sits below the
+		   lockup and was dropping the hamburger under the header. */
+		position: static;
+	}
+	.main-navigation {
+		width: 100%;
+		float: none;
+		margin: 0;
+		position: static;
+	}
+	/* Full width, not the 75px the centred flex item used to give it. */
+	.main-navigation .handheld-navigation,
+	.main-navigation .primary-navigation { width: 100%; }
+	.main-navigation:has(.menu-toggle) .handheld-navigation ul.menu {
+		padding: .25rem var(--sr-gutter) 1rem;
+	}
+	.main-navigation .handheld-navigation ul.menu > li > a {
+		display: block;
+		padding: .95rem 0;
+		border-bottom: 1px solid var(--sr-line);
+		font-size: .82rem;
+		letter-spacing: .14em;
+	}
+	.storefront-primary-navigation:has(.main-navigation.toggled) {
+		border-top: 1px solid var(--sr-line);
+	}
+	/* The consultation CTA belongs in the drawer on a phone, where it has
+	   room to be a button rather than being hidden outright. */
+	.storefront-primary-navigation:has(.main-navigation.toggled) .sr-header-consult {
+		display: block;
+		width: calc(100% - 2 * var(--sr-gutter));
+		margin: .9rem var(--sr-gutter) 1.1rem;
+		text-align: center;
+	}
+}
+
+/* --- Mobile drawer: the consultation CTA --------------------------------
+   It is absolutely positioned against .storefront-primary-navigation .col-full
+   on desktop. That row is made static above so the hamburger can anchor to the
+   header, which left the CTA anchoring to the header too and painting itself
+   over the lockup. Inside the drawer it is a block in flow. */
+@media (max-width: 767px) {
+	.storefront-primary-navigation .sr-header-consult { position: static; }
+}
+
+/* ============================================================
+   Mobile cart row
+
+   At 390px the row was quantity (120x90) + Add to Cart (157x90) + the save
+   heart, all fighting for ~310px. The button ended up narrower than the
+   stepper beside it, with "ADD TO CART" crushed into 157px at 2.7px of
+   letter-spacing, while the stepper was the largest control on the page.
+
+   Two rows instead: the stepper and the heart share the first, and the
+   button - the thing the page exists for - gets the full width of the second.
+   ============================================================ */
+@media (max-width: 600px) {
+	.single-product .summary form.cart,
+	.single-product .summary .woocommerce-variation-add-to-cart {
+		flex-wrap: wrap;
+		gap: .6rem;
+	}
+	.single-product .summary form.cart .quantity.sr-qty {
+		order: 1;
+		flex: 0 0 auto;
+		min-height: 52px;
+	}
+	.single-product .summary form.cart .sr-qty input[type="number"] {
+		width: 2.4rem;
+		font-size: .95rem;
+	}
+	.single-product .summary form.cart .sr-qty button {
+		min-width: 44px;
+		font-size: 1.05rem;
+	}
+	.single-product .summary form.cart .sr-save {
+		order: 2;
+		flex: 0 0 auto;
+		width: 52px;
+		min-height: 52px;
+		margin: 0;
+	}
+	.single-product .summary form.cart button[type="submit"],
+	.single-product .summary form.cart .single_add_to_cart_button {
+		order: 3;
+		flex: 1 0 100%;
+		width: 100%;
+		min-height: 54px;
+		padding: 1em 1.2em;
+		/* The label has room to breathe on its own row, so it no longer needs
+		   to be squeezed. */
+		font-size: .78rem;
+		letter-spacing: .14em;
+		white-space: nowrap;
+	}
+}
+
+/* --- Gallery arrows ---------------------------------------------------
+   WooCommerce ships FlexSlider with directionNav off, so the thumbnail strip
+   was the only way through the images - which on a phone sits below the fold
+   under a full-screen slide. */
+.single-product .woocommerce-product-gallery { position: relative; }
+.sr-gallery-nav {
+	position: absolute;
+	top: 50%;
+	z-index: 4;
+	display: grid;
+	place-items: center;
+	width: 44px;
+	height: 44px;
+	margin: 0;
+	padding: 0;
+	transform: translateY(-50%);
+	border: 1px solid rgba(74, 31, 36, .12);
+	border-radius: var(--sr-radius-pill);
+	background: rgba(255, 255, 255, .9);
+	color: var(--sr-burgundy);
+	cursor: pointer;
+	backdrop-filter: blur(6px);
+	box-shadow: 0 2px 12px rgba(74, 31, 36, .14);
+	/* Fades in with the photograph rather than sitting over it permanently. */
+	opacity: 0;
+	transition: opacity 220ms ease, background-color 200ms ease, transform 200ms ease;
+}
+.sr-gallery-nav svg { width: 20px; height: 20px; }
+.sr-gallery-nav--prev { left: 14px; }
+.sr-gallery-nav--next { right: 14px; }
+.single-product .woocommerce-product-gallery:hover .sr-gallery-nav,
+.sr-gallery-nav:focus-visible { opacity: 1; }
+.sr-gallery-nav:hover { background: var(--sr-white); }
+.sr-gallery-nav:focus-visible {
+	outline: 2px solid var(--sr-burgundy);
+	outline-offset: 2px;
+}
+/* The zoom badge lives in the top-right; keep the next arrow clear of it. */
+@media (max-width: 900px) {
+	/* No hover on a touch screen, so they are simply always there. */
+	.sr-gallery-nav { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+	.sr-gallery-nav { transition: none; }
 }

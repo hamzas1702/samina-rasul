@@ -404,6 +404,11 @@ add_action( 'wp_enqueue_scripts', function () {
 					/* translators: %s: attribute name, e.g. "Size". */
 					'selectPrefix' => __( 'Select %s', 'samina-rasul' ),
 				),
+				// Labels for the gallery arrows, which are built at runtime.
+				'gallery' => array(
+					'prev' => __( 'Previous image', 'samina-rasul' ),
+					'next' => __( 'Next image', 'samina-rasul' ),
+				),
 			)
 		);
 

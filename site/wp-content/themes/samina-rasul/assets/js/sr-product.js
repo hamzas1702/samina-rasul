@@ -434,3 +434,103 @@
 		});
 	}
 })();
+
+/**
+ * Gallery arrows.
+ *
+ * WooCommerce initialises FlexSlider with `directionNav: false`, so the only
+ * way through the images was the thumbnail strip - fine on a desktop where the
+ * strip is visible, poor on a phone where the slide fills the screen and the
+ * thumbnails sit below the fold.
+ *
+ * These drive the thumbnail nav rather than the slider's own API: Woo does not
+ * expose the FlexSlider instance on the wrapper (`$wrapper.data('flexslider')`
+ * is undefined here), and reaching into a library's internals to page a gallery
+ * is a bet on it never being swapped out. Clicking the control the slider
+ * already listens to works whatever is driving it underneath, and keeps the
+ * active state, the zoom and the lightbox in step for free.
+ */
+( function () {
+	'use strict';
+
+	var gallery = document.querySelector( '.woocommerce-product-gallery' );
+
+	if ( ! gallery ) {
+		return;
+	}
+
+	var strings = ( window.srProductL10n && window.srProductL10n.gallery ) || {};
+
+	function thumbs() {
+		return Array.prototype.slice.call( gallery.querySelectorAll( '.flex-control-thumbs li' ) );
+	}
+
+	function build() {
+		var list = thumbs();
+
+		// One image (or none): nothing to page through.
+		if ( list.length < 2 || gallery.querySelector( '.sr-gallery-nav' ) ) {
+			return;
+		}
+
+		[ 'prev', 'next' ].forEach( function ( dir ) {
+			var btn = document.createElement( 'button' );
+			btn.type = 'button';
+			btn.className = 'sr-gallery-nav sr-gallery-nav--' + dir;
+			btn.setAttribute( 'aria-label', dir === 'prev'
+				? ( strings.prev || 'Previous image' )
+				: ( strings.next || 'Next image' ) );
+			btn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="' +
+				( dir === 'prev' ? 'M15 5l-7 7 7 7' : 'M9 5l7 7-7 7' ) + '"/></svg>';
+
+			btn.addEventListener( 'click', function ( event ) {
+				event.preventDefault();
+				step( dir === 'next' ? 1 : -1 );
+			} );
+
+			gallery.appendChild( btn );
+		} );
+	}
+
+	function step( delta ) {
+		var list = thumbs();
+		if ( list.length < 2 ) {
+			return;
+		}
+
+		var current = list.findIndex( function ( li ) {
+			return li.querySelector( 'img.flex-active' );
+		} );
+
+		if ( current < 0 ) {
+			current = 0;
+		}
+
+		// Wraps, so the arrows never dead-end on a short gallery.
+		var target = ( current + delta + list.length ) % list.length;
+		var img = list[ target ].querySelector( 'img' );
+
+		if ( img ) {
+			img.click();
+		}
+	}
+
+	/*
+	 * The thumbnail strip is created by FlexSlider after this file runs, so the
+	 * arrows are built once it exists. The observer disconnects itself rather
+	 * than watching the gallery for the life of the page.
+	 */
+	if ( thumbs().length >= 2 ) {
+		build();
+	} else if ( typeof MutationObserver !== 'undefined' ) {
+		var observer = new MutationObserver( function () {
+			if ( thumbs().length >= 2 ) {
+				observer.disconnect();
+				build();
+			}
+		} );
+		observer.observe( gallery, { childList: true, subtree: true } );
+		// Give up rather than observe forever on a product with one photograph.
+		setTimeout( function () { observer.disconnect(); }, 8000 );
+	}
+} )();
