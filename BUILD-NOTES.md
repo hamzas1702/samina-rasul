@@ -517,6 +517,78 @@ products from an early import still reference it, and `seed-7` refuses to delete
 a term that is still in use rather than silently orphaning them. No published
 product offers ML. Empty the trash and re-run `seed-7` to clear it.
 
+## Hardening and mobile polish (2026-08-21)
+
+### What was actually exposed
+
+`/wp-json/wp/v2/users` answered anyone with `{"id":1, "name":"<the owner's
+email address>", "is_super_admin":true}`. On this install the **username is the
+email address**, so that published a valid login identifier and confirmed which
+account was the administrator; `?author=1` leaked it a second time through the
+author-archive slug. XML-RPC was open, there were no transport or framing
+headers at all, and nothing limited login attempts or password resets.
+
+`mu-plugins/samina-core/security.php` closes all of it. Notes worth keeping:
+
+- Its IP helper is `sr_security_client_ip()`, **not** the theme's
+  `sr_client_ip()`. mu-plugins load first, so a bare redeclaration takes the
+  site down with a fatal in `functions.php` — which is exactly what the first
+  version did. They also differ on purpose: the theme's trusts the last
+  `X-Forwarded-For` entry, which is fine for labelling a contact-form
+  submission and wrong for a lockout that must not be resettable by inventing
+  a header.
+- The REST users endpoint is **gated on `list_users`, not removed** — the block
+  editor needs it when assigning an author.
+- `display_name` and `user_nicename` on the live admin were changed to
+  "Samina Rasul" / `samina-rasul`. **`user_login` was left alone** — it is the
+  owner's login credential and changing it is their call, not a deploy step.
+- **XML-RPC returns 200 with a zero-byte body** on this host. Hostinger
+  terminates it above PHP, so the `wp_die` in this file never runs. No method
+  executes either way; do not read the 200 as "still open".
+- Edge caching (`server: hcdn`) will serve stale redirects for a while after a
+  change. Verify enumeration fixes with a cache-buster before concluding they
+  failed.
+
+Not implemented, and why: CSRF tokens (WordPress nonces already cover every
+form this theme adds), server-side pricing (WooCommerce reads price from the
+product — `tools/qa/test-addon-pricing.php` proves it), payment webhook
+verification (bank transfer is reconciled by hand; there is no webhook), and
+prompt-injection/AI limits (there is no AI on this site). Database privileges
+are a hosting-panel setting and cannot be changed from here.
+
+### Mobile
+
+- **Header** was two rows and 133px tall, and the nav drawer inherited the 75px
+  width of the centred flex item it lived in — opening the menu produced a
+  column of wrapped links a third of the screen wide. Now one row (hamburger,
+  lockup, icons) at 100px, with the drawer breaking out full width. The
+  hamburger is absolutely positioned against `.site-header`, which meant making
+  `.storefront-primary-navigation .col-full` static — and that row was the
+  anchor for the consultation CTA, which then painted itself over the lockup
+  until it was set back to static flow inside the drawer.
+- **Cart row** had a 120x90 quantity stepper beside a 157px Add to Cart with its
+  label crushed at 2.7px of letter-spacing — the stepper was the largest control
+  on the page. Stepper and heart share a row; the button gets the full width of
+  the next.
+- **Timeline cards** were laid over the rail by 15px. The marker is a diamond
+  rotated 45deg about `left: 5px`, so it really occupies x=20 to x=40 while the
+  card box started at the container's own left edge, 25px.
+
+### Gallery arrows
+
+WooCommerce ships FlexSlider with `directionNav: false`. The arrows drive the
+**thumbnail nav**, not the slider API: Woo does not expose the instance on the
+wrapper (`$wrapper.data('flexslider')` is undefined), and reaching into a
+library's internals to page a gallery is a bet on it never being swapped. The
+strip is built after `sr-product.js` runs, so a self-disconnecting
+`MutationObserver` waits for it.
+
+### Site icon
+
+There was none — no favicon markup in `<head>` at all. `assets/images/site-icon.png`
+is the SR monogram in cream on the house burgundy, 512x512, set as the WordPress
+site icon so core emits every size.
+
 ## Local environment (no Docker/Homebrew needed)
 
 - Stack: static PHP 8.3 binary (`.tools/php`) + wp-cli (`.tools/wp`) + WordPress on **SQLite** (official `sqlite-database-integration` plugin) in `site/`.
