@@ -29,7 +29,8 @@ $sr_description = $sr_term instanceof WP_Term ? term_description( $sr_term ) : '
 $sr_count       = ( $sr_term instanceof WP_Term && $sr_term->count > 0 ) ? (int) $sr_term->count : 0;
 
 /*
- * The category's own image, when one has been set in wp-admin.
+ * The masthead photograph: the Customizer's "Page banners" choice for this
+ * page, falling back to the category's own image in wp-admin.
  *
  * Rendered through wp_get_attachment_image() rather than as a bare <img> built
  * from the 'full' URL. This is the LCP element on the page: the bare version
@@ -39,7 +40,7 @@ $sr_count       = ( $sr_term instanceof WP_Term && $sr_term->count > 0 ) ? (int)
  */
 $sr_hero_image = '';
 if ( $sr_term instanceof WP_Term ) {
-	$sr_hero_id = (int) get_term_meta( $sr_term->term_id, 'thumbnail_id', true );
+	$sr_hero_id = sr_archive_banner_id( $sr_term );
 	if ( $sr_hero_id > 0 ) {
 		$sr_hero_image = wp_get_attachment_image(
 			$sr_hero_id,

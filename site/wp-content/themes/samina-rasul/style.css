@@ -43,15 +43,33 @@ Text Domain: samina-rasul
 	--sr-measure: 62ch;
 	/* One content width for the whole site. Every section centres its content
 	 * on this; full-bleed backgrounds run edge to edge, their content does not. */
-	--sr-content-max: 1320px;
+	--sr-content-max: 1560px;
 	/* Side padding, matched to the breathing room the Formals/Bridals splits use. */
 	--sr-gutter: clamp(1.5rem, 5vw, 4rem);
-	/* One product-card width for the whole site. The grids resolve to ~280px in
-	 * a 1200px container at four columns; the horizontal rail is pinned to the
-	 * same figure so a card is never a different size on one page than another. */
-	--sr-card-min: 260px;
-	--sr-card-w: clamp(240px, 24vw, 282px);
+	/* One product-card width for the whole site. The horizontal rail is pinned
+	 * to roughly what the grids resolve to, so a card is never a different size
+	 * on one page than another.
+	 *
+	 * Large on purpose - the photograph is the product, and at four or five
+	 * columns a hand-embellished neckline was too small to read. The grids
+	 * state their column counts outright (see ul.products) rather than deriving
+	 * them from a minimum track: auto-fill against a large minimum lands on two
+	 * columns at 1280 and one at 760, which is not a layout anyone chose. */
+	--sr-card-w: clamp(300px, 34vw, 440px);
 	--sr-card-gap: clamp(1.1rem, 2vw, 1.75rem);
+	/* One corner language for the whole site. Before these existed the file
+	 * carried fourteen different radii - 0, 2, 3, 4, 6, 8, 10, 12, 14, 16, 20,
+	 * 26px - chosen a block at a time, so a panel, the button inside it and the
+	 * input beside that were each rounded differently. Four steps, used
+	 * everywhere:
+	 *   sm  small controls: inputs, pills, swatches, badges on a corner
+	 *   md  buttons and anything the hand lands on
+	 *   lg  panels, cards, fieldsets, the summary column
+	 *   pill fully round: filter chips, the size pills' active state, avatars */
+	--sr-radius-sm: 4px;
+	--sr-radius-md: 8px;
+	--sr-radius-lg: 12px;
+	--sr-radius-pill: 999px;
 	--sr-section: clamp(3.5rem, 9vw, 7.5rem);
 	/* The site header is sticky and ~133px tall; anything else that sticks
 	   has to start below it or its top rows sit underneath. */
@@ -142,7 +160,7 @@ a:hover { color: var(--sr-burgundy-soft); }
 	font-size: 0.8rem;
 	letter-spacing: 0.14em;
 	text-transform: uppercase;
-	border-radius: 0;
+	border-radius: var(--sr-radius-md);
 	padding: 0.95em 2.2em;
 	transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease;
 }
@@ -302,7 +320,7 @@ a:hover { color: var(--sr-burgundy-soft); }
 	padding: 0.62em 0.9em !important;
 	margin: 0;
 	border: 1px solid rgba(74, 31, 36, .26) !important;
-	border-radius: 999px !important;
+	border-radius: var(--sr-radius-pill) !important;
 	background: rgba(255, 255, 255, .9);
 	box-shadow: 0 1px 2px rgba(74, 31, 36, .05) inset;
 	font-family: var(--sr-font-body);
@@ -363,7 +381,7 @@ a:hover { color: var(--sr-burgundy-soft); }
 	min-width: 1rem;
 	height: 1rem;
 	padding: 0 0.2rem;
-	border-radius: 999px;
+	border-radius: var(--sr-radius-pill);
 	background: var(--sr-burgundy);
 	color: var(--sr-white);
 	font-family: var(--sr-font-body);
@@ -483,10 +501,19 @@ a:hover { color: var(--sr-burgundy-soft); }
  * this on specificity. */
 ul.products {
 	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(var(--sr-card-min), 1fr));
+	grid-template-columns: 1fr;
 	gap: var(--sr-card-gap);
 	margin: 0;
 	padding: 0;
+}
+/* Three across on a desktop, two on a tablet, one on a phone - stated, not
+   derived. The counts are the same on every grid on the site, so a piece is
+   the same size wherever it is seen. */
+@media (min-width: 560px) {
+	ul.products { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 1100px) {
+	ul.products { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 ul.products::before,
 ul.products::after { content: none; }
@@ -609,7 +636,7 @@ ul.products::after { content: none; }
 	-webkit-appearance: none;
 	padding: .62em 2.4em .62em .9em;
 	border: 1px solid rgba(74, 31, 36, .26);
-	border-radius: 8px;
+	border-radius: var(--sr-radius-md);
 	background-color: transparent;
 	/* Chevron drawn inline so no icon font or image is needed. */
 	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8' fill='none'%3E%3Cpath d='M1 1.5 6 6.5 11 1.5' stroke='%234A1F24' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E");
@@ -1413,7 +1440,7 @@ ul.products::after { content: none; }
 	max-width: 410px;
 	padding: clamp(1.25rem, 2.4vw, 1.8rem);
 	border: 1px solid transparent;
-	border-radius: 14px;
+	border-radius: var(--sr-radius-lg);
 	/* Layered creamy shine rather than a flat two-stop fade: a highlight off
 	 * the top-left, a warm shadow into the bottom-right, over the cream base. */
 	background:
@@ -1984,7 +2011,7 @@ ul.products li.product img {
 }
 .wc-block-cart__submit-button,
 .wc-block-components-checkout-place-order-button {
-	border-radius: 0;
+	border-radius: var(--sr-radius-md);
 	background: var(--sr-burgundy);
 	font-family: var(--sr-font-body);
 	font-size: .78rem;
@@ -2002,7 +2029,7 @@ ul.products li.product img {
 .sr-card-ph--solo {
 	aspect-ratio: 3 / 4;
 	width: 100%;
-	border-radius: 12px;
+	border-radius: var(--sr-radius-lg);
 	overflow: hidden;
 }
 .sr-gallery-ph { display: block; width: 100%; }
@@ -2018,7 +2045,7 @@ ul.products li.product img {
 	border-top-color: var(--sr-burgundy) !important;
 	background: var(--sr-cream);
 	color: var(--sr-ink);
-	border-radius: 10px;
+	border-radius: var(--sr-radius-lg);
 	font-size: .92rem;
 }
 .woocommerce-info::before,
@@ -2050,10 +2077,10 @@ ul.products li.product img {
 	flex: 1 1 auto;
 	min-width: 0;
 	border: 1px solid rgba(74, 31, 36, .28);
-	border-radius: 8px;
+	border-radius: var(--sr-radius-md);
 	padding: .7em .9em;
 }
-.wp-block-woocommerce-empty-cart-block .wc-block-grid__products img { border-radius: 10px; }
+.wp-block-woocommerce-empty-cart-block .wc-block-grid__products img { border-radius: var(--sr-radius-lg); }
 
 /* Storefront leaves a purple focus outline that fires on mouse click and
  * clashes with the palette; this theme's own :focus-visible rule is correct. */
@@ -2085,7 +2112,7 @@ a:focus:not(:focus-visible) { outline: none; }
 	padding: .7em 1.2em;
 	max-width: 46ch;
 	border: 1px solid rgba(74, 31, 36, .18);
-	border-radius: 10px;
+	border-radius: var(--sr-radius-lg);
 	background: rgba(255, 255, 255, .6);
 	font-size: .9rem;
 }
@@ -2099,7 +2126,7 @@ a:focus:not(:focus-visible) { outline: none; }
 	padding: clamp(1.1rem, 2.4vw, 1.6rem);
 	list-style: none;
 	border: 1px solid rgba(74, 31, 36, .14);
-	border-radius: 14px;
+	border-radius: var(--sr-radius-lg);
 	background:
 		radial-gradient(115% 85% at 18% 8%, rgba(255, 255, 255, .9), transparent 58%),
 		linear-gradient(135deg, #fbf7f0 0%, var(--sr-cream) 55%, #f0e7da 100%);
@@ -2203,6 +2230,9 @@ html {
 	content: "";
 	position: absolute;
 	inset: 0;
+	/* Follows the button's own corners now that they are rounded, so the sweep
+	   fill does not square off the ends as it crosses. */
+	border-radius: inherit;
 	transform: translateX(-102%);
 	transition: transform 420ms cubic-bezier(0.65, 0, 0.35, 1);
 	z-index: -1;
@@ -2475,7 +2505,7 @@ ul.products li.product {
 	text-align: center;
 	background: var(--sr-white);
 	border: 1px solid rgba(74, 31, 36, .1);
-	border-radius: 16px;
+	border-radius: var(--sr-radius-lg);
 	overflow: hidden;
 	transition: border-color 320ms ease, box-shadow 420ms ease, transform 420ms cubic-bezier(.22, 1, .36, 1);
 	/* Storefront floats and width-hacks loop items; the grid owns layout here. */
@@ -2490,11 +2520,16 @@ ul.products li.product:hover {
 	transform: translateY(-3px);
 }
 /* One fixed ratio for every card, whatever the source image. Mixed portrait
- * photos and square placeholders were what made the grid look ragged. */
+ * photos and square placeholders were what made the grid look ragged.
+ *
+ * 2/3, not 3/4: that is the ratio the catalogue is actually shot at, so the box
+ * now matches the photograph instead of cutting a strip off the top and bottom
+ * of every piece. The handful of off-ratio files still crop, which is the price
+ * of one ratio for the grid - and a much smaller crop than 3/4 was. */
 .sr-card-media {
 	margin-bottom: 0;
 	border-radius: 0;
-	aspect-ratio: 3 / 4;
+	aspect-ratio: 2 / 3;
 }
 .sr-card-media__link { display: block; height: 100%; }
 .sr-card-media img {
@@ -2521,7 +2556,7 @@ ul.products li.product:hover {
 	top: .9rem;
 	left: .9rem;
 	padding: .5em 1.05em;
-	border-radius: 999px;
+	border-radius: var(--sr-radius-pill);
 	background: rgba(255, 255, 255, .92);
 	color: var(--sr-burgundy);
 	font-family: var(--sr-font-body);
@@ -2544,22 +2579,16 @@ ul.products li.product:hover {
 ul.products li.product .sr-card-body .woocommerce-loop-product__title {
 	margin: 0;
 	padding: 0;
-	font-size: 1.24rem;
+	font-size: 1.36rem;
 }
 .sr-card-body .woocommerce-loop-product__title a { text-decoration: none; }
 ul.products li.product .sr-card-body .price,
 .sr-card-body .sr-price-on-inquiry {
 	margin: 0;
 	font-family: var(--sr-font-body);
-	font-size: .92rem;
+	font-size: .95rem;
 	font-weight: 600;
 	letter-spacing: .01em;
-}
-.sr-card-excerpt {
-	margin: .15rem 0 0;
-	font-size: .88rem;
-	line-height: 1.6;
-	color: rgba(36, 20, 23, .78);
 }
 /* Actions pinned to the foot so cards in a row line up. */
 .sr-card-actions {
@@ -2605,7 +2634,7 @@ ul.products li.product .sr-card-actions .button {
 	.sr-route__art { width: min(48%, 165px); }
 	.sr-rowhead { align-items: flex-start; }
 	.sr-atelier__actions { width: 100%; justify-content: space-between; }
-	.sr-product-rail ul.products li.product { width: min(76vw, 310px) !important; }
+	.sr-product-rail ul.products li.product { width: min(82vw, 380px) !important; }
 }
 
 /* ---------- Preloader ---------- */
@@ -2619,11 +2648,31 @@ ul.products li.product .sr-card-actions .button {
 	background: var(--sr-burgundy);
 }
 .sr-preload .sr-preloader { display: flex; }
+.sr-preloader__inner {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: clamp(1.1rem, 3vw, 1.9rem);
+	padding-inline: var(--sr-gutter);
+}
+/* The monogram, in the same cream it wears in the footer. */
+.sr-preloader__mark {
+	display: block;
+	width: clamp(64px, 11vw, 104px);
+	height: auto;
+	opacity: 0;
+	transform: scale(.88);
+}
+.sr-preloader__mark--fallback { color: var(--sr-cream); }
+.sr-preloader__mark--fallback .sr-ornament { width: 100%; opacity: .9; }
 .sr-preloader__word {
 	display: flex;
 	overflow: hidden;
+	/* The last letter's tracking would otherwise be clipped by the overflow
+	   box that the letter animation needs. */
+	padding-right: 0.3em;
 	font-family: var(--sr-font-display);
-	font-size: clamp(1.4rem, 4vw, 2.4rem);
+	font-size: clamp(1.1rem, 3.2vw, 1.9rem);
 	letter-spacing: 0.3em;
 	text-transform: uppercase;
 	color: var(--sr-cream);
@@ -2633,6 +2682,9 @@ ul.products li.product .sr-card-actions .button {
 	transform: translateY(110%);
 	opacity: 0;
 }
+/* No JS-off fallback is needed here: .sr-preloader is display:none unless the
+   inline head script adds .sr-preload, and that script only runs when
+   JavaScript does. With it off the overlay never paints at all. */
 /* While preloading, pin the page under the overlay */
 .sr-preload body { overflow: hidden; }
 
@@ -2948,7 +3000,7 @@ ul.products li.product .sr-card-actions .button {
 	width: 100% !important;
 	padding: 1.05rem 1.2rem !important;
 	border: 1px solid var(--sr-burgundy) !important;
-	border-radius: 2px !important;
+	border-radius: var(--sr-radius-sm) !important;
 	background: var(--sr-white);
 	font-family: var(--sr-font-body);
 	font-size: .95rem;
@@ -3098,15 +3150,16 @@ ul.products li.product .sr-card-actions .button {
 	}
 	.single-product div.product .sr-gallery-col {
 		grid-column: 1;
-		/* Spanning both rows is what lets the sticky gallery run past the end of
-		   the summary and alongside the accordions: a sticky element can only
-		   travel within its own grid area. */
-		grid-row: 1 / span 2;
-		/* Stretch, not start: the sticky gallery travels inside this wrapper, so
-		   the wrapper has to be as tall as the two rows it spans. Start-aligned
-		   it would shrink to the gallery and the sticky child would have nowhere
-		   to travel. */
-		align-self: stretch;
+		/* One row, sized to its own contents.
+		   It used to span two rows and stretch, because the gallery inside it
+		   was sticky and a sticky element can only travel within its own grid
+		   area. That is what put the photograph over the related products: the
+		   column claimed the height of a row it did not own, and a tall gallery
+		   ran on down the page underneath everything that followed it. The
+		   sticky behaviour is gone (see below), so the reason for the span is
+		   gone with it. */
+		grid-row: 1;
+		align-self: start;
 		width: 100% !important;   /* Storefront floats and percentage-sizes this */
 		float: none !important;
 		margin: 0 !important;
@@ -3144,10 +3197,14 @@ ul.products li.product .sr-card-actions .button {
 	   different hooks with a dozen different margins, so those are zeroed
 	   below and the gap spaces them evenly. */
 	gap: .95rem;
-	/* No card: the column's own hairlines separate its sections, and a border
-	   around the whole lot boxed the page in a second frame the gallery beside
-	   it does not have. */
-	padding: .5rem 0 0;
+	/* A quiet cream ground, so the buying column reads as one panel beside the
+	   photograph rather than as text floating on the same white the gallery
+	   sits on. Deliberately soft: a hard border would box the page in a second
+	   frame the gallery does not have, so the tint and a hairline do the work. */
+	background: linear-gradient(180deg, var(--sr-cream) 0%, rgba(248, 244, 237, .45) 100%);
+	border: 1px solid rgba(74, 31, 36, .07);
+	border-radius: var(--sr-radius-lg);
+	padding: clamp(1.4rem, 2.4vw, 2.2rem);
 	/* 34rem was a reading measure borrowed from a body of prose. This column is
 	   not prose - it is a price, a spec table, two rows of choices and a cart -
 	   and the cap left 30px of its own grid track empty beside a photograph
@@ -3286,7 +3343,7 @@ ul.products li.product .sr-card-actions .button {
 	padding: .62em 1em;
 	background: var(--sr-cream);
 	border: 1px solid transparent;
-	border-radius: 2px;
+	border-radius: var(--sr-radius-sm);
 	font-family: var(--sr-font-body);
 	font-size: .76rem;
 	font-weight: 600;
@@ -3323,7 +3380,7 @@ ul.products li.product .sr-card-actions .button {
 	margin: 0;
 	padding: 1rem 1.1rem;
 	border: 1px solid var(--sr-line);
-	border-radius: 4px;
+	border-radius: var(--sr-radius-sm);
 	background: var(--sr-cream);
 }
 .single-product .summary fieldset legend {
@@ -3341,7 +3398,7 @@ ul.products li.product .sr-card-actions .button {
 	background-color: var(--sr-burgundy);
 	border-color: var(--sr-burgundy);
 	color: var(--sr-cream);
-	border-radius: 3px;
+	border-radius: var(--sr-radius-sm);
 }
 .single-product .summary form.cart button[type="submit"]:hover:not(:disabled) {
 	background-color: var(--sr-burgundy-soft);
@@ -3352,7 +3409,7 @@ ul.products li.product .sr-card-actions .button {
 	height: 100%;
 	min-height: 3.1rem;
 	border: 1px solid var(--sr-line);
-	border-radius: 3px;
+	border-radius: var(--sr-radius-sm);
 	background: var(--sr-white);
 	text-align: center;
 }
@@ -3360,10 +3417,11 @@ ul.products li.product .sr-card-actions .button {
 /* ============================================================
    Product grids — the rails that are laid out rather than scrolled
    ============================================================ */
+/* Inherits the column counts from the shared ul.products rule above. This block
+   used to hardcode a 15rem track against the archives' 260px, so a card was a
+   different size on the home page than on the page it linked to. */
 .sr-product-grid ul.products {
-	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
-	gap: clamp(1.2rem, 2.5vw, 2rem);
+	gap: var(--sr-card-gap);
 	margin: 0;
 	padding: 0;
 	list-style: none;
@@ -3373,11 +3431,6 @@ ul.products li.product .sr-card-actions .button {
 	margin: 0 !important;
 	float: none !important;
 	clear: none !important;
-}
-/* Bridals are shown three across, larger, because they are looked at rather
-   than compared - and there are only ever a handful of them. */
-.sr-rail--bridals .sr-product-grid ul.products {
-	grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr));
 }
 
 /* Gallery: the slide image fills its column. Storefront leaves it at the
@@ -3407,7 +3460,9 @@ ul.products li.product .sr-card-actions .button {
 	margin: 0 !important;
 	padding: 0;
 	float: none !important;
-	aspect-ratio: 1;
+	/* Matches the slide it selects, so a thumbnail is a small version of the
+	   photograph rather than a square cut out of the middle of it. */
+	aspect-ratio: 2 / 3;
 	overflow: hidden;
 	border: 1px solid transparent;
 	transition: border-color .3s ease;
@@ -3468,7 +3523,7 @@ ul.products li.product .sr-card-actions .button {
 	height: 2.6rem;
 	padding: 0 .8rem;
 	border: 1px solid var(--sr-line);
-	border-radius: 999px;
+	border-radius: var(--sr-radius-pill);
 	background: transparent;
 	color: var(--sr-ink-70);
 	font-family: var(--sr-font-body);
@@ -3549,13 +3604,14 @@ ul.products li.product .sr-card-actions .button {
 	font-size: clamp(1.4rem, 2.6vw, 2rem);
 	text-align: left;
 }
-/* Four across at full width, so the eight related pieces fill two clean rows
-   rather than five and a ragged three. */
+/* Inherits the site-wide column counts from the shared `ul.products` rule.
+   This block used to state its own `auto-fill, minmax(17rem, …)`, which
+   resolved to four across and made a related card a third narrower than the
+   same product's card on the page it links to. Six related products, three
+   across, is two clean rows. */
 .single-product .related.products ul.products,
 .single-product .upsells.products ul.products {
-	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr));
-	gap: clamp(1.2rem, 2.5vw, 2rem);
+	gap: var(--sr-card-gap);
 	margin: 0;
 	padding: 0;
 	list-style: none;
@@ -3651,7 +3707,7 @@ ul.products li.product .sr-card-actions .button {
 	gap: .1rem;
 	min-width: 3.1rem;
 	padding: .6em 1.1em;
-	border-radius: 999px;
+	border-radius: var(--sr-radius-pill);
 	border: 1px solid var(--sr-line);
 	background: var(--sr-white);
 	font-size: .78rem;
@@ -3721,7 +3777,7 @@ ul.products li.product .sr-card-actions .button {
 	width: 22px;
 	height: 22px;
 	border: 1px solid var(--sr-burgundy);
-	border-radius: 4px;
+	border-radius: var(--sr-radius-sm);
 	color: var(--sr-cream);
 	transition: background-color 240ms ease;
 }
@@ -3769,7 +3825,7 @@ ul.products li.product .sr-card-actions .button {
 	margin: auto;
 	height: fit-content;
 	max-width: min(620px, 92vw);
-	border-radius: 12px;
+	border-radius: var(--sr-radius-lg);
 	padding: clamp(1.6rem, 4vw, 2.4rem);
 }
 .sr-size-chart h3 { margin: .2rem 0 .4rem; }
@@ -3843,7 +3899,7 @@ ul.products li.product .sr-card-actions .button {
 	margin-top: .4rem;
 	padding: 1.25rem 1.4rem;
 	border: 1px solid var(--sr-line);
-	border-radius: 6px;
+	border-radius: var(--sr-radius-md);
 	background: var(--sr-cream);
 }
 .sr-atelier-note__icon {
@@ -3875,7 +3931,7 @@ ul.products li.product .sr-card-actions .button {
 	place-items: center;
 	padding: 0;
 	border: 1px solid var(--sr-line);
-	border-radius: 2px;
+	border-radius: var(--sr-radius-sm);
 	background: none;
 	color: var(--sr-ink);
 	cursor: pointer;
@@ -3886,25 +3942,19 @@ ul.products li.product .sr-card-actions .button {
 .sr-save.is-saved { border-color: var(--sr-burgundy); color: var(--sr-burgundy); }
 .sr-save.is-saved svg { fill: currentColor; }
 
-/* Gallery follows the summary while the terms and accordions are read.
-   Bounded to viewport height so a tall column can never pin with its bottom
-   permanently off-screen - the failure this layout hit once before. */
+/* The gallery scrolls with the page.
+   It used to be sticky, which meant it had to be capped to the viewport, and
+   its wrapper had to claim two grid rows to give it somewhere to travel. Both
+   of those pushed the photograph down over the related products below. A
+   photograph that stays where it was put is also simply easier to read against
+   a column of text that is doing the same. */
 @media (min-width: 900px) {
 	.single-product div.product .sr-gallery-col > .woocommerce-product-gallery {
-		position: sticky;
-		/* Below the sticky site header, not under it. At 2.5rem the top of the
-		   photograph slid beneath the header bar as the page scrolled. */
-		top: var(--sr-sticky-top);
 		/* Storefront still floats and percentage-sizes this; the wrapper owns
 		   the column now, so the gallery fills it. */
 		width: 100% !important;
 		float: none !important;
 		margin: 0 !important;
-		/* Capped to the viewport so a tall gallery cannot pin with its bottom
-		   permanently off-screen. No inner scrollbar: the column is not a
-		   scroller, it just stops growing. Measured from below the header,
-		   which the sticky offset above already accounts for. */
-		max-height: calc(100vh - var(--sr-sticky-top) - 2rem);
 	}
 }
 
@@ -4078,16 +4128,57 @@ ul.products li.product .sr-card-media__link { position: relative; z-index: 2; }
 }
 
 /* --- Gallery --------------------------------------------------------- */
+/* 2/3 is the ratio the catalogue is shot at, and `contain` rather than `cover`
+   because this is the page where the customer is deciding: a hem, a sleeve or a
+   dupatta fall cut off by the frame is exactly the detail they came to see. The
+   handful of files shot at another ratio letterbox onto the cream instead,
+   which costs a little space and crops nothing. The box keeps a fixed ratio
+   either way, so the column does not resize as the slides change. */
 .single-product .woocommerce-product-gallery__image,
 .single-product .woocommerce-product-gallery .sr-gallery-ph {
 	background-color: var(--bg-cream, var(--sr-cream));
-	border-radius: 4px;
+	border-radius: var(--sr-radius-sm);
 	overflow: hidden;
-	aspect-ratio: 4 / 5;
+	aspect-ratio: 2 / 3;
 }
 .single-product .woocommerce-product-gallery__image > a,
 .single-product .woocommerce-product-gallery__image > a > img { display: block; height: 100%; }
-.single-product .woocommerce-product-gallery__image img:not(.zoomImg) { object-fit: cover; }
+.single-product .woocommerce-product-gallery__image img:not(.zoomImg) { object-fit: contain; }
+
+/* --- Video slide ------------------------------------------------------
+   A real gallery slide (see samina-core/product-fields.php), so it inherits
+   the 2/3 box above and only needs its own surface and label. Dark ground
+   rather than cream: a film letterboxes against black without looking like a
+   mistake, and it marks the slide as the one that moves. */
+.single-product .sr-gallery-video {
+	position: relative;
+	background: var(--sr-burgundy-deep, #2A1013);
+}
+.single-product .sr-gallery-video__player {
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: contain;
+}
+.single-product .sr-gallery-video__label {
+	position: absolute;
+	z-index: 2;
+	top: .9rem;
+	left: .9rem;
+	padding: .5em 1.05em;
+	border-radius: var(--sr-radius-pill);
+	background: rgba(255, 255, 255, .92);
+	color: var(--sr-burgundy);
+	font-family: var(--sr-font-body);
+	font-size: .62rem;
+	font-weight: 700;
+	letter-spacing: .14em;
+	text-transform: uppercase;
+	/* Top-left, clear of the browser's own controls at the foot of the slide.
+	   Not interactive - a click on it should reach the video underneath. */
+	pointer-events: none;
+	backdrop-filter: blur(6px);
+}
 /* jQuery.zoom drops a full-size copy of the image over the slide and drags it
    under the cursor. It must keep its natural dimensions - forcing it to the
    column width is what once made "zoom" look like a vertical stretch. */
@@ -4211,7 +4302,7 @@ ul.products li.product .sr-card-media__link { position: relative; z-index: 2; }
 	min-width: 40px;
 	padding: 8px 14px;
 	border: 1px solid var(--sr-border);
-	border-radius: 20px;
+	border-radius: var(--sr-radius-pill);
 	background: var(--sr-white);
 	font-family: var(--sr-font-body);
 	font-size: .8rem;
@@ -4248,7 +4339,7 @@ ul.products li.product .sr-card-media__link { position: relative; z-index: 2; }
 	padding: 20px 24px;
 	background-color: var(--sr-cream);
 	border: 1px solid var(--sr-border);
-	border-radius: 4px;
+	border-radius: var(--sr-radius-sm);
 }
 .sr-atelier-note__icon {
 	width: 22px;
@@ -4283,7 +4374,7 @@ ul.products li.product .sr-card-media__link { position: relative; z-index: 2; }
 .single-product .summary form.cart button[type="submit"] {
 	flex: 1;
 	padding: 22px;
-	border-radius: 0;
+	border-radius: var(--sr-radius-md);
 	font-size: .85rem;
 	font-weight: 400;
 	letter-spacing: .2em;
@@ -4295,7 +4386,7 @@ ul.products li.product .sr-card-media__link { position: relative; z-index: 2; }
 .single-product .summary form.cart .sr-save {
 	width: 60px;
 	border: 1px solid var(--sr-border);
-	border-radius: 0;
+	border-radius: var(--sr-radius-md);
 }
 
 /* --- Trust row ------------------------------------------------------- */
@@ -4428,7 +4519,7 @@ ul.products li.product .sr-card-media__link { position: relative; z-index: 2; }
 	min-height: 48px;
 	padding: 10px 22px;
 	border: 1px solid var(--sr-border);
-	border-radius: 26px;
+	border-radius: var(--sr-radius-pill);
 	background: var(--sr-white);
 	font-size: .88rem;
 	font-weight: 500;
@@ -4463,7 +4554,7 @@ ul.products li.product .sr-card-media__link { position: relative; z-index: 2; }
 	margin: 0 0 24px;
 	padding: 18px 24px;
 	border: 1px dashed var(--sr-burgundy);
-	border-radius: 6px;
+	border-radius: var(--sr-radius-md);
 	background: rgba(74, 31, 36, .015);
 }
 .single-product .summary .sr-addons legend {
@@ -4509,7 +4600,7 @@ ul.products li.product .sr-card-media__link { position: relative; z-index: 2; }
 	width: 26px;
 	height: 26px;
 	border: 1px solid var(--sr-burgundy);
-	border-radius: 4px;
+	border-radius: var(--sr-radius-sm);
 }
 
 /* --- Atelier note: its own line under the cart row -------------------- */
@@ -4598,7 +4689,7 @@ ul.products li.product .sr-card-media__link { position: relative; z-index: 2; }
 	min-width: 46px;
 	min-height: 38px;
 	padding: 7px 16px;
-	border-radius: 20px;
+	border-radius: var(--sr-radius-pill);
 	font-size: .82rem;
 }
 .single-product .sr-swatch__step { margin-top: 2px; font-size: .66rem; }
@@ -4608,7 +4699,7 @@ ul.products li.product .sr-card-media__link { position: relative; z-index: 2; }
 	display: inline-flex;
 	align-items: stretch;
 	border: 1px solid var(--sr-border);
-	border-radius: 3px;
+	border-radius: var(--sr-radius-sm);
 	overflow: hidden;
 }
 .single-product .summary form.cart .sr-qty input[type="number"] {
@@ -5455,7 +5546,7 @@ input[type="submit"],
 	min-width: 1rem;
 	height: 1rem;
 	padding: 0 0.2rem;
-	border-radius: 999px;
+	border-radius: var(--sr-radius-pill);
 	background: var(--sr-burgundy);
 	color: var(--sr-white);
 	font-family: var(--sr-font-body);
@@ -5513,7 +5604,7 @@ input[type="submit"],
 	padding: clamp(1.8rem, 4vw, 3rem) clamp(1.5rem, 4vw, 3.2rem) clamp(2.4rem, 5vw, 3.6rem);
 	background: var(--sr-white);
 	border: 1px solid var(--sr-border);
-	border-radius: 4px;
+	border-radius: var(--sr-radius-sm);
 }
 @media (min-width: 1000px) {
 	.sr-legal--has-toc { padding-inline: clamp(2rem, 4vw, 3.2rem); }
@@ -5527,7 +5618,7 @@ input[type="submit"],
 .sr-legal__section h2 { letter-spacing: -.005em; }
 .sr-legal__section p,
 .sr-faq__a p { font-size: .96rem; }
-.sr-legal__contact { border-radius: 0 3px 3px 0; }
+.sr-legal__contact { border-radius: 0 var(--sr-radius-sm) var(--sr-radius-sm) 0; }
 
 /* ============================================================
    Brand lockup, header CTA, paired actions
@@ -6056,7 +6147,7 @@ input[type="submit"],
 .wc-block-cart-item__wrap { padding-block: clamp(1.1rem, 2.5vw, 1.6rem); }
 
 .wc-block-cart-item__image img {
-	border-radius: 0;
+	border-radius: var(--sr-radius-sm);
 	background: var(--sr-cream);
 }
 .wc-block-cart-item__product .wc-block-components-product-name {
@@ -6080,7 +6171,7 @@ input[type="submit"],
    grey pill that belongs to no other control on the site. */
 .wc-block-components-quantity-selector {
 	border: 1px solid var(--sr-border);
-	border-radius: 0;
+	border-radius: var(--sr-radius-sm);
 	background: var(--sr-white);
 }
 .wc-block-components-quantity-selector::after { display: none; }
@@ -6145,7 +6236,7 @@ input[type="submit"],
 	overflow: hidden;
 	z-index: 0;
 	width: 100%;
-	border-radius: 0;
+	border-radius: var(--sr-radius-md);
 	border: 1px solid var(--sr-burgundy);
 	background-color: var(--sr-burgundy);
 	color: var(--sr-cream);
@@ -6230,7 +6321,7 @@ input[type="submit"],
 
 /* --- Notices (out of stock, coupon rejected, quantity limits) --------- */
 .woocommerce-cart .wc-block-components-notice-banner {
-	border-radius: 0;
+	border-radius: var(--sr-radius-md);
 	font-family: var(--sr-font-body);
 	font-size: .86rem;
 }
@@ -6506,7 +6597,7 @@ a.sr-contact__value:hover { color: var(--sr-sand); }
 	background: transparent;
 	border: 0;
 	border-bottom: 1px solid var(--sr-ink-40);
-	border-radius: 0;
+	border-radius: var(--sr-radius-sm);
 	padding: .75rem 1.5rem .75rem 0;
 	font-family: var(--sr-font-body);
 	font-size: 1rem;
@@ -6625,7 +6716,7 @@ a.sr-contact__value:hover { color: var(--sr-sand); }
 .single-product .sr-swatch-group--size .sr-swatch {
 	min-width: 3.1rem;
 	padding: .6em 1.05em;
-	border-radius: 999px;
+	border-radius: var(--sr-radius-pill);
 	border: 1px solid var(--sr-line);
 	font-size: .78rem;
 	font-weight: 500;
@@ -6648,7 +6739,7 @@ a.sr-contact__value:hover { color: var(--sr-sand); }
 	grid-template-columns: 1fr;
 	gap: 0;
 	border: 1px solid var(--sr-line);
-	border-radius: 4px;
+	border-radius: var(--sr-radius-sm);
 	overflow: hidden;
 	background: var(--sr-white);
 }
@@ -7050,4 +7141,540 @@ a.sr-contact__value:hover { color: var(--sr-sand); }
 	font-style: italic;
 	font-size: 1.1rem;
 	color: var(--sr-burgundy);
+}
+
+/* ============================================================
+   Custom size — the made-to-measure route behind the
+   "Customized" size pill (mu-plugins/samina-core/custom-size.php)
+   ============================================================ */
+
+/* --- The choice row, inside the cart form ---------------------------- */
+.sr-custom-size {
+	width: 100%;
+	margin: .35rem 0 .2rem;
+	padding: 1rem 1.1rem 1.15rem;
+	border: 1px solid rgba(74, 31, 36, .14);
+	border-radius: var(--sr-radius-md);
+	background: var(--sr-white);
+}
+.sr-custom-size[hidden] { display: none; }
+.sr-custom-size__lead {
+	margin: 0 0 .8rem;
+	font-family: var(--sr-font-body);
+	font-size: .74rem;
+	font-weight: 600;
+	letter-spacing: .14em;
+	text-transform: uppercase;
+	color: var(--sr-burgundy);
+}
+.sr-custom-size__choice {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: .7rem;
+}
+.single-product .summary .sr-custom-size__choice .button {
+	flex: 1 1 12rem;
+	margin: 0;
+	width: auto;
+	font-size: .72rem;
+	padding: .95em 1.1em;
+}
+.sr-custom-size__or {
+	font-family: var(--sr-font-body);
+	font-size: .68rem;
+	font-weight: 700;
+	letter-spacing: .16em;
+	color: rgba(36, 20, 23, .5);
+}
+.sr-custom-size__summary {
+	margin: .8rem 0 0;
+	padding-left: 1.35rem;
+	position: relative;
+	font-size: .85rem;
+	line-height: 1.5;
+	color: var(--sr-burgundy);
+}
+/* A tick, so a saved sheet reads as done at a glance. */
+.sr-custom-size__summary::before {
+	content: "";
+	position: absolute;
+	left: 0;
+	top: .35em;
+	width: .8rem;
+	height: .45rem;
+	border-left: 2px solid currentColor;
+	border-bottom: 2px solid currentColor;
+	transform: rotate(-45deg);
+}
+.sr-custom-size__summary[hidden] { display: none; }
+
+/* --- The dialogs ------------------------------------------------------ */
+.sr-cs-dialog {
+	width: min(920px, 94vw);
+	max-height: 88vh;
+	/* Explicit: a modal <dialog> centres itself with `margin: auto`, and
+	   Storefront zeroes margins on block-level elements site-wide, which pinned
+	   this to the top-left corner of the viewport. */
+	margin: auto;
+	padding: clamp(1.4rem, 3vw, 2.4rem);
+	border: 1px solid var(--sr-line);
+	border-radius: var(--sr-radius-md);
+	background: var(--sr-white);
+	overflow-y: auto;
+	color: inherit;
+}
+.sr-cs-dialog--callback { width: min(520px, 94vw); }
+.sr-cs-dialog::backdrop { background: rgba(36, 20, 23, .45); }
+.sr-cs-dialog__dismiss { margin: 0; float: right; }
+.sr-cs-dialog__close {
+	border: 0;
+	background: none;
+	padding: .2rem .4rem;
+	font-size: 1.6rem;
+	line-height: 1;
+	color: rgba(36, 20, 23, .55);
+	cursor: pointer;
+}
+.sr-cs-dialog__close:hover { color: var(--sr-burgundy); }
+.sr-cs-dialog__title {
+	margin: 0 0 .2rem;
+	font-family: var(--sr-font-display);
+	font-size: clamp(1.6rem, 3vw, 2.1rem);
+	color: var(--sr-burgundy);
+}
+.sr-cs-dialog__lead {
+	margin: 0 0 1.4rem;
+	font-size: .95rem;
+	color: rgba(36, 20, 23, .7);
+}
+
+/* Front → Back, as two nodes on a rule. The rule is drawn on the list and sits
+   behind the circles, so widening the gap moves the nodes apart without the
+   line ever running across one of them. */
+.sr-cs-steps {
+	position: relative;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: clamp(2.5rem, 12vw, 8rem);
+	margin: 0 0 1.6rem;
+	padding: 0;
+	list-style: none;
+}
+.sr-cs-steps::before {
+	content: "";
+	position: absolute;
+	z-index: 0;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	width: clamp(2.5rem, 12vw, 8rem);
+	height: 2px;
+	background: var(--sr-burgundy);
+}
+.sr-cs-steps__item {
+	position: relative;
+	z-index: 1;
+	display: grid;
+	place-items: center;
+	width: 5.2rem;
+	height: 5.2rem;
+	border: 2px solid var(--sr-burgundy);
+	border-radius: 50%;
+	background: var(--sr-white);
+	color: var(--sr-burgundy);
+	font-family: var(--sr-font-body);
+	font-size: .82rem;
+	font-weight: 600;
+	transition: background 240ms ease, color 240ms ease;
+}
+.sr-cs-steps__item.is-current {
+	background: var(--sr-burgundy);
+	color: var(--sr-cream);
+}
+
+.sr-cs-step__grid {
+	display: grid;
+	/* auto-fit, not two fixed tracks: a product whose measurement diagrams have
+	   not been uploaded yet has one child here, and two tracks left half the
+	   dialog empty beside the fields. */
+	grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
+	gap: clamp(1.2rem, 3vw, 2.4rem);
+	align-items: start;
+}
+/* The back step puts the fields on the right, mirroring the diagram beside
+   them, exactly as the atelier's own sheet does. */
+.sr-cs-step--back .sr-cs-step__grid { direction: rtl; }
+.sr-cs-step--back .sr-cs-step__grid > * { direction: ltr; }
+
+.sr-cs-fields {
+	display: flex;
+	flex-direction: column;
+	gap: .6rem;
+	/* Capped and centred, so that a product whose diagrams have not been
+	   uploaded yet shows a column of inputs at a sane measure rather than
+	   fifteen fields stretched across the whole dialog. With a diagram beside
+	   them the track is already narrower than this and the cap never binds. */
+	width: 100%;
+	max-width: 30rem;
+	margin-inline: auto;
+}
+.sr-cs-field input {
+	width: 100%;
+	min-height: 3rem;
+	padding: .7em .9em;
+	border: 1px solid var(--sr-line);
+	border-radius: var(--sr-radius-sm);
+	background: var(--sr-white);
+	font-family: var(--sr-font-body);
+	font-size: .95rem;
+	color: var(--sr-ink, #241417);
+}
+.sr-cs-field input:focus-visible {
+	outline: 2px solid var(--sr-burgundy);
+	outline-offset: 1px;
+}
+.sr-cs-field input.is-invalid {
+	border-color: #b3261e;
+	background: #fdf6f5;
+}
+/* The spinner arrows are noise on fifteen fields and invite a click that
+   changes a measurement by a quarter inch without anyone noticing. */
+.sr-cs-field input[type="number"] { -moz-appearance: textfield; }
+.sr-cs-field input[type="number"]::-webkit-outer-spin-button,
+.sr-cs-field input[type="number"]::-webkit-inner-spin-button {
+	-webkit-appearance: none;
+	margin: 0;
+}
+
+.sr-cs-diagram { margin: 0; }
+.sr-cs-diagram__img {
+	display: block;
+	width: 100%;
+	height: auto;
+}
+
+.sr-cs-error {
+	margin: 1rem 0 0;
+	padding: .7rem .9rem;
+	border-left: 3px solid #b3261e;
+	background: #fdf6f5;
+	font-size: .85rem;
+	color: #7a1b16;
+}
+.sr-cs-error[hidden] { display: none; }
+
+.sr-cs-dialog__actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: .7rem;
+	margin-top: 1.5rem;
+}
+.sr-cs-dialog__actions .button {
+	flex: 1 1 10rem;
+	margin: 0;
+	text-align: center;
+	font-size: .72rem;
+	padding: .95em 1.2em;
+}
+
+@media (max-width: 720px) {
+	.sr-cs-step__grid { grid-template-columns: minmax(0, 1fr); }
+	/* The diagram is reference, not decoration - but on a phone it belongs
+	   above the fields it explains rather than pushed below them. */
+	.sr-cs-diagram { order: -1; }
+	.sr-cs-step--back .sr-cs-step__grid { direction: ltr; }
+	.sr-cs-steps__item { width: 4.2rem; height: 4.2rem; font-size: .74rem; }
+}
+
+/* ============================================================
+   Bank transfer — the receipt upload on the thank-you page and
+   on My account → Orders (mu-plugins/samina-core/bank-transfer.php)
+   ============================================================ */
+.sr-receipt {
+	width: min(100%, var(--sr-content-max));
+	margin: 2.5rem auto 0;
+	padding: clamp(1.4rem, 3vw, 2.2rem);
+	border: 1px solid rgba(74, 31, 36, .14);
+	border-radius: var(--sr-radius-lg);
+	background: linear-gradient(180deg, var(--sr-cream) 0%, rgba(248, 244, 237, .45) 100%);
+}
+.sr-receipt__title {
+	margin: 0 0 .6rem;
+	font-family: var(--sr-font-display);
+	font-size: clamp(1.4rem, 2.6vw, 1.8rem);
+	color: var(--sr-burgundy);
+}
+.sr-receipt__lead,
+.sr-receipt__done {
+	margin: 0 0 1.2rem;
+	max-width: var(--sr-measure);
+	font-size: .95rem;
+	line-height: 1.65;
+}
+.sr-receipt__done { color: var(--sr-burgundy); font-weight: 500; }
+.sr-receipt__form {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: .8rem;
+	margin: 0;
+}
+.sr-receipt__file { flex: 1 1 18rem; margin: 0; }
+.sr-receipt__file input[type="file"] {
+	width: 100%;
+	padding: .8rem;
+	border: 1px dashed rgba(74, 31, 36, .3);
+	border-radius: var(--sr-radius-sm);
+	background: var(--sr-white);
+	font-family: var(--sr-font-body);
+	font-size: .88rem;
+}
+.sr-receipt__file input[type="file"]:focus-visible {
+	outline: 2px solid var(--sr-burgundy);
+	outline-offset: 1px;
+}
+.sr-receipt .button.sr-receipt__submit {
+	flex: 0 0 auto;
+	margin: 0;
+	font-size: .72rem;
+	padding: 1.05em 1.6em;
+}
+.sr-receipt__note {
+	flex: 1 1 100%;
+	margin: .2rem 0 0;
+	font-size: .8rem;
+	line-height: 1.55;
+	color: rgba(36, 20, 23, .62);
+}
+.sr-receipt__flash {
+	width: min(100%, var(--sr-content-max));
+	margin-inline: auto;
+}
+.sr-receipt__flash--error {
+	border-top-color: #b3261e;
+	background: #fdf6f5;
+	color: #7a1b16;
+}
+
+@media (max-width: 560px) {
+	.sr-receipt__form { flex-direction: column; align-items: stretch; }
+	.sr-receipt .button.sr-receipt__submit { width: 100%; text-align: center; }
+}
+
+/* ============================================================
+   Product page — choices, add-ons and the column they sit in
+
+   Three objects that were all reading as the same white rectangle:
+
+     Size      a required choice between versions of the same piece
+     Fabric    the same, but with labels that run to a sentence and a price
+     Add-on    an extra you may decline
+
+   The two required choices carry the warm gold ground, because they are what
+   the customer must work through. The add-on is deliberately quieter: it earns
+   its attention from a clear outline and a legible heading rather than from a
+   heavier fill than the controls above it.
+   ============================================================ */
+
+/* --- The summary column: minimal ------------------------------------- */
+/* Was a cream gradient with a border and a large radius, which turned the
+   buying column into a heavy card sitting beside an unframed photograph. The
+   panels inside it carry the structure; this only needs to sit them apart
+   from the white page. */
+.single-product div.product .summary {
+	background: var(--sr-cream-55);
+	border: 0;
+	border-radius: var(--sr-radius-lg);
+	padding: clamp(1.2rem, 2vw, 1.9rem);
+}
+
+/* --- Air between one choice and the next ------------------------------ */
+/* WooCommerce lays the variations out as a <table>, one <tr> per attribute,
+   and table rows take no margin. Consecutive groups therefore butted straight
+   together and the second attribute's label sat directly on the first one's
+   pills. */
+.single-product .variations tr + tr .sr-swatch-group { margin-top: 1.5rem; }
+.single-product .variations td.value { padding: 0; }
+
+/* --- Size pills ------------------------------------------------------- */
+.single-product .sr-swatch-group--size .sr-swatch {
+	border: 1px solid var(--sr-sand);
+	/* The house gold. On the cream column white pills read as holes punched
+	   through the panel. */
+	background: linear-gradient(180deg, #fdf8f0 0%, #f2e2cc 100%);
+	color: var(--sr-ink);
+	box-shadow: 0 1px 2px rgba(74, 31, 36, .05);
+}
+.single-product .sr-swatch-group--size .sr-swatch:hover:not(:disabled) {
+	border-color: var(--sr-burgundy);
+	background: linear-gradient(180deg, #fdfaf5 0%, #ecdcc2 100%);
+	color: var(--sr-burgundy);
+}
+.single-product .sr-swatch-group--size .sr-swatch.is-active,
+.single-product .sr-swatch-group--size .sr-swatch.is-active:hover {
+	border-color: var(--sr-burgundy);
+	background: linear-gradient(180deg, #5c2830 0%, var(--sr-burgundy) 100%);
+	color: var(--sr-cream);
+	box-shadow: 0 3px 12px rgba(74, 31, 36, .26);
+}
+
+/* --- Fabric / made-up option rows ------------------------------------- */
+.single-product .sr-swatch-group--option .sr-swatches {
+	border: 1px solid var(--sr-sand);
+	border-radius: var(--sr-radius-md);
+	background: linear-gradient(145deg, #fdf8f0 0%, #f7ecdb 55%, #f2e2cc 100%);
+	box-shadow: 0 2px 12px rgba(74, 31, 36, .07);
+}
+.single-product .sr-swatch-group--option .sr-swatch {
+	/* The rule between rows has to read against the gold, not against white. */
+	border-top-color: rgba(74, 31, 36, .12);
+}
+.single-product .sr-swatch-group--option .sr-swatch:hover:not(:disabled) {
+	background: rgba(255, 255, 255, .45);
+}
+.single-product .sr-swatch-group--option .sr-swatch.is-active {
+	background: rgba(255, 255, 255, .62);
+	color: var(--sr-burgundy);
+}
+
+/* --- Add-ons: quieter than the choices, but clearly its own thing ----- */
+.single-product .summary .sr-addons {
+	padding: 1.35rem 1.4rem 1.25rem;
+	/* Outline and heading do the work. A fill heavier than the size and fabric
+	   controls made the optional extra shout over the two required choices. */
+	border: 1px solid rgba(74, 31, 36, .28);
+	border-radius: var(--sr-radius-lg);
+	background: var(--sr-white);
+	box-shadow: none;
+}
+.single-product .summary .sr-addons legend {
+	/* On the panel rather than filled: a solid burgundy chip was the loudest
+	   thing in the column. The rule and the letter-spacing carry it. */
+	margin-left: -.15rem;
+	padding: 0 .55em 0 0;
+	background: transparent;
+	color: var(--sr-burgundy);
+	font-size: .66rem;
+	font-weight: 700;
+	letter-spacing: .18em;
+	text-transform: uppercase;
+	box-shadow: none;
+}
+.single-product .summary .sr-addons .sr-addon-option + .sr-addon-option {
+	border-top: 1px solid var(--sr-line);
+	margin-top: .35rem;
+	padding-top: .8rem;
+}
+.single-product .sr-addon-note { color: var(--sr-ink-55); }
+.single-product .sr-addon-mark {
+	border-color: var(--sr-burgundy);
+	background: var(--sr-white);
+}
+
+
+
+/* --- Blocked add-to-cart, and the notice that replaces the alert ------ */
+/* Same object as the dialog's own .sr-cs-error, so a refusal reads the same
+   wherever it happens. */
+.sr-cart-notice {
+	flex: 1 0 100%;
+	order: 1;
+	width: 100%;
+	margin: .85rem 0 0;
+	padding: .8rem 1rem;
+	border: 1px solid rgba(179, 38, 30, .3);
+	border-left: 3px solid #b3261e;
+	border-radius: var(--sr-radius-sm);
+	background: #fdf6f5;
+	font-family: var(--sr-font-body);
+	font-size: .86rem;
+	line-height: 1.5;
+	color: #7a1b16;
+}
+.sr-cart-notice[hidden] { display: none; }
+
+/* Held, not disabled: the button keeps its focus ring and its click, because
+   the click is what produces the explanation. It only stops looking pressable. */
+.single-product .summary form.cart .single_add_to_cart_button.sr-cart-held {
+	opacity: .5;
+	cursor: not-allowed;
+}
+.single-product .summary form.cart .single_add_to_cart_button.sr-cart-held::before {
+	/* No hover sweep on a button that will not fire. */
+	display: none;
+}
+
+/* --- Bank details on the thank-you page and in My account ------------- */
+/* WooCommerce ships these as an unstyled <ul> of "Label: value" lines in the
+   theme's default grey. On a page whose whole job is to get a transfer made
+   correctly, the numbers are the content — so they are set in the house
+   burgundy, at a size worth reading, with the labels stepped back. */
+.woocommerce-bacs-bank-details {
+	width: min(100%, var(--sr-content-max));
+	margin: 2rem auto 0;
+	padding: clamp(1.4rem, 3vw, 2.2rem);
+	border: 1px solid var(--sr-line);
+	border-radius: var(--sr-radius-lg);
+	background: var(--sr-cream-55);
+}
+.woocommerce-bacs-bank-details .wc-bacs-bank-details-heading {
+	margin: 0 0 1.1rem;
+	font-family: var(--sr-font-display);
+	font-size: clamp(1.4rem, 2.6vw, 1.8rem);
+	color: var(--sr-burgundy);
+}
+.woocommerce-bacs-bank-details ul.wc-bacs-bank-details {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+	gap: .9rem clamp(1.2rem, 3vw, 2.5rem);
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+.woocommerce-bacs-bank-details ul.wc-bacs-bank-details li {
+	display: flex;
+	flex-direction: column;
+	gap: .25rem;
+	margin: 0;
+	padding: .7rem .9rem;
+	border: 1px solid var(--sr-line);
+	border-radius: var(--sr-radius-sm);
+	background: var(--sr-white);
+	/* The label, which WooCommerce emits as a bare text node before the value. */
+	font-family: var(--sr-font-body);
+	font-size: .68rem;
+	font-weight: 600;
+	letter-spacing: .14em;
+	text-transform: uppercase;
+	color: var(--sr-burgundy);
+}
+.woocommerce-bacs-bank-details ul.wc-bacs-bank-details li strong {
+	font-family: var(--sr-font-body);
+	font-size: 1rem;
+	font-weight: 600;
+	letter-spacing: .02em;
+	text-transform: none;
+	color: var(--sr-ink);
+	/* Long account numbers and IBANs must not push the card wider than its
+	   track on a phone. */
+	overflow-wrap: anywhere;
+}
+
+/* --- WhatsApp alternative under the upload --------------------------- */
+.sr-receipt__whatsapp {
+	margin: 1.1rem 0 0;
+	padding-top: 1rem;
+	border-top: 1px solid var(--sr-line);
+	font-size: .9rem;
+	line-height: 1.6;
+	color: var(--sr-ink-70);
+}
+.sr-receipt__whatsapp strong { color: var(--sr-burgundy); }
+.sr-receipt__whatsapp a {
+	color: var(--sr-burgundy);
+	font-weight: 600;
+	text-decoration: underline;
+	text-underline-offset: 3px;
 }

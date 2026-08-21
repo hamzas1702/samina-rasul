@@ -406,6 +406,32 @@ add_action( 'wp_enqueue_scripts', function () {
 				),
 			)
 		);
+
+		/*
+		 * The made-to-measure dialog. Depends on sr-product so the size pills
+		 * exist before it looks for the select they mirror, and is loaded only
+		 * where a product actually offers the "Customized" size - most of the
+		 * catalogue does, but a piece cut in one size only should not pay for it.
+		 */
+		if ( function_exists( 'sr_offers_custom_size' ) && sr_offers_custom_size( get_queried_object_id() ) ) {
+			wp_enqueue_script(
+				'sr-custom-size',
+				$assets . '/sr-custom-size.js',
+				array( 'sr-product' ),
+				sr_asset_version( 'assets/js/sr-custom-size.js' ),
+				true
+			);
+			wp_localize_script(
+				'sr-custom-size',
+				'srCustomSizeL10n',
+				array(
+					'incomplete'        => __( 'Please complete every field: ', 'samina-rasul' ),
+					'chooseRoute'       => __( 'Tell us how to take your measurements — request a call back, or enter them yourself.', 'samina-rasul' ),
+					'savedMeasurements' => __( 'Measurements saved. They travel with this piece to the atelier.', 'samina-rasul' ),
+					'savedCallback'     => __( 'Call back requested. We will telephone you to take your measurements.', 'samina-rasul' ),
+				)
+			);
+		}
 	}
 }, 25 );
 
@@ -510,12 +536,28 @@ add_action( 'wp_head', function () {
  */
 add_action( 'wp_footer', function () {
 	?>
+	<?php
+	/*
+	 * The monogram leads, the name follows. The word alone was a row of letters
+	 * on a burgundy field with nothing to identify whose it was, and because
+	 * the letters animate from below a clipping box, a slow font load left the
+	 * screen blank for the whole of it.
+	 */
+	$sr_pre_mark = sr_image_url( 'logo-mark.png' );
+	?>
 	<div class="sr-preloader" aria-hidden="true">
-		<span class="sr-preloader__word"><?php
-			foreach ( str_split( 'SAMINA RASUL' ) as $ch ) {
-				echo '<span>' . ( ' ' === $ch ? '&nbsp;' : esc_html( $ch ) ) . '</span>';
-			}
-		?></span>
+		<div class="sr-preloader__inner">
+			<?php if ( '' !== $sr_pre_mark ) : ?>
+				<img class="sr-preloader__mark" src="<?php echo esc_url( $sr_pre_mark ); ?>" alt="" width="164" height="146" decoding="async">
+			<?php else : ?>
+				<span class="sr-preloader__mark sr-preloader__mark--fallback"><?php echo sr_ornament_svg(); // phpcs:ignore WordPress.Security.EscapeOutput -- static inline SVG. ?></span>
+			<?php endif; ?>
+			<span class="sr-preloader__word"><?php
+				foreach ( str_split( 'SAMINA RASUL' ) as $ch ) {
+					echo '<span>' . ( ' ' === $ch ? '&nbsp;' : esc_html( $ch ) ) . '</span>';
+				}
+			?></span>
+		</div>
 	</div>
 	<div class="sr-curtain" aria-hidden="true"></div>
 	<div class="sr-cursor-ring" aria-hidden="true"></div>
@@ -852,13 +894,62 @@ function sr_branded_gallery_placeholder( $html, $post_thumbnail_id ) {
 add_filter( 'woocommerce_single_product_image_thumbnail_html', 'sr_branded_gallery_placeholder', 10, 2 );
 
 /**
+ * WooCommerce image sizes.
+ *
+ * Storefront asks for a 324px thumbnail and a 416px single image
+ * (inc/woocommerce/class-storefront-woocommerce.php), figures from a theme
+ * whose cards are a third of the width of these. With the site's own
+ * `woocommerce_thumbnail_cropping` left at its default the thumbnail was also
+ * hard-cropped square, so a 1200x1800 photograph was cut to 324x324 and then
+ * stretched back into a portrait box - a crop and an upscale in one step.
+ *
+ * The catalogue is shot to one ratio: 154 of 174 files are 1200x1800 or
+ * 800x1199, i.e. 2:3. Cropping the thumbnail to 2:3 therefore removes nothing
+ * from the great majority of the catalogue while still guaranteeing the grid a
+ * single ratio, which is what kept it from looking ragged. The single image is
+ * left uncropped so the product page can show the photograph whole.
+ *
+ * Existing uploads carry the old dimensions until they are regenerated:
+ *   wp media regenerate --image_size=woocommerce_thumbnail --yes
+ */
+add_filter( 'woocommerce_get_image_size_thumbnail', function () {
+	return array(
+		'width'  => 600,
+		'height' => 900,
+		'crop'   => 1,
+	);
+} );
+
+add_filter( 'woocommerce_get_image_size_single', function () {
+	return array(
+		'width'  => 1000,
+		'height' => 0,
+		'crop'   => 0,
+	);
+} );
+
+add_filter( 'woocommerce_get_image_size_gallery_thumbnail', function () {
+	return array(
+		'width'  => 180,
+		'height' => 270,
+		'crop'   => 1,
+	);
+} );
+
+/**
  * Shop-loop cards.
  *
  * The stock loop wraps the whole tile in a single <a>, which cannot legally
- * contain the size links and the two calls to action this card carries, so the
- * wrapper is removed and the image and title are linked individually instead.
- * Every block below renders only when its data exists, so a product with no
- * SKU, excerpt, attributes or sizes still produces a clean card.
+ * contain the call to action this card carries, so the wrapper is removed and
+ * the image and title are linked individually instead. Every block below
+ * renders only when its data exists, so a product with no SKU or photograph
+ * still produces a clean card.
+ *
+ * The card is deliberately image-led: a large photograph, the piece's name and
+ * its price, and nothing else. The short description used to sit here too, and
+ * a second "View details" button beside WooCommerce's own - which pointed at
+ * the same permalink the button beside it already opened, so the card asked the
+ * same question twice and pushed the photograph down to make room.
  */
 remove_action( 'woocommerce_before_shop_loop_item', 'woocommerce_template_loop_product_link_open', 10 );
 remove_action( 'woocommerce_after_shop_loop_item', 'woocommerce_template_loop_product_link_close', 5 );
@@ -874,10 +965,22 @@ add_action( 'woocommerce_before_shop_loop_item_title', function () {
 
 	$badge = sr_product_badge_text( $product );
 
-	// A product with no image gets the house placeholder rather than
-	// WooCommerce's grey camera icon, which broke the run of the grid.
+	/*
+	 * A product with no image gets the house placeholder rather than
+	 * WooCommerce's grey camera icon, which broke the run of the grid.
+	 *
+	 * Not woocommerce_get_product_thumbnail(): that helper takes no attributes,
+	 * so the image went out with WordPress's default `sizes` of
+	 * "(max-width: 324px) 100vw, 324px". A card is far wider than 324px on this
+	 * layout, and that attribute is a promise to the browser - it picked the
+	 * 324w candidate and upscaled it, which is what made every card look soft.
+	 * The srcset was always there; nothing was allowed to use it.
+	 */
 	$media = $product->get_image_id()
-		? woocommerce_get_product_thumbnail()
+		? $product->get_image(
+			'woocommerce_thumbnail',
+			array( 'sizes' => '(max-width: 640px) 92vw, (max-width: 1100px) 46vw, 30vw' )
+		)
 		: '<span class="sr-card-ph" aria-hidden="true">' . sr_ornament_svg() . '</span>';
 
 	echo '<div class="sr-card-media">';
@@ -917,19 +1020,13 @@ add_action( 'woocommerce_after_shop_loop_item_title', function () {
 	}
 }, 9 );
 
-// Short description, then the actions row. A card sells the piece and gets
-// out of the way; fabrics, work and sizes are the product page's job.
+// Open the actions row. A card sells the piece and gets out of the way; the
+// description, fabrics, work and sizes are all the product page's job.
 add_action( 'woocommerce_after_shop_loop_item_title', function () {
 	global $product;
 	if ( ! $product instanceof WC_Product ) {
 		return;
 	}
-
-	$excerpt = $product->get_short_description();
-	if ( '' !== $excerpt ) {
-		printf( '<p class="sr-card-excerpt">%s</p>', esc_html( wp_strip_all_tags( $excerpt ) ) );
-	}
-
 	echo '<div class="sr-card-actions">';
 }, 20 );
 
@@ -939,13 +1036,24 @@ add_action( 'woocommerce_after_shop_loop_item', function () {
 	if ( ! $product instanceof WC_Product ) {
 		return;
 	}
-	printf(
-		'<a class="button sr-ghost sr-card-details" href="%s"><span>%s</span></a>',
-		esc_url( $product->get_permalink() ),
-		esc_html__( 'View details', 'samina-rasul' )
-	);
 	echo '</div></div>';
 }, 20 );
+
+/**
+ * One call to action per card.
+ *
+ * WooCommerce's own loop button is the one that survives, because bridal-flow
+ * filters it into the "Inquire" link for bridal pieces - removing it would take
+ * the only route off a bridal card with it. Its default label for a variable
+ * product is "Select options", which is checkout language for a page that is
+ * really just the next step of browsing, so it says "View Details" instead.
+ */
+add_filter( 'woocommerce_product_add_to_cart_text', function ( $text, $product ) {
+	if ( $product instanceof WC_Product && $product->is_type( 'variable' ) ) {
+		return __( 'View Details', 'samina-rasul' );
+	}
+	return $text;
+}, 10, 2 );
 
 // Search-engine and social meta: canonical, description, Open Graph, schema.
 require_once get_stylesheet_directory() . '/inc/seo.php';
@@ -955,7 +1063,7 @@ require_once get_stylesheet_directory() . '/inc/seo.php';
  *
  * Cart-abandonment research puts unexpected costs and unclear delivery timing
  * at the top of the list of reasons people leave, and this house sells a
- * made-to-order product with a seven-to-nine week lead time and a part-advance
+ * made-to-order product with a seven-to-twelve week lead time and a part-advance
  * payment. Stating all of that before checkout - rather than letting a shopper
  * discover it later - is what the strip is for. Deliberately answers concrete
  * questions instead of showing generic badges.
@@ -963,7 +1071,7 @@ require_once get_stylesheet_directory() . '/inc/seo.php';
 function sr_trust_signals() {
 	/*
 	 * Prefer the product's own _sr_delivery_time. The strip previously stated a
-	 * catalogue-wide "seven to nine weeks" a few hundred pixels below a product
+	 * catalogue-wide "seven to twelve weeks" a few hundred pixels below a product
 	 * line reading "7-8 weeks" - two different answers to the most important
 	 * question on the page, in one viewport.
 	 */
@@ -974,7 +1082,7 @@ function sr_trust_signals() {
 	$made_copy = '' !== trim( $lead )
 		/* translators: %s: per-product lead time, e.g. "8-9 weeks". */
 		? sprintf( __( 'Hand-stitched in %s', 'samina-rasul' ), $lead )
-		: __( 'Hand-stitched in eight to nine weeks', 'samina-rasul' );
+		: __( 'Hand-stitched to order', 'samina-rasul' );
 
 	$points = array(
 		array(
@@ -1752,6 +1860,62 @@ add_filter( 'woocommerce_general_settings', function ( $settings ) {
 } );
 
 /**
+ * Carries an sr_collection slug from sr_product_rail() into the [products]
+ * shortcode's query, and reads it back out again.
+ *
+ * Collections are a custom taxonomy that cuts across the Formals/Bridals
+ * categories (mu-plugins/samina-core/taxonomy.php), and the shortcode only
+ * knows about product_cat and product attributes. A static, set only for the
+ * length of one do_shortcode() call, is the smallest bridge between the two:
+ * the alternative is a bespoke WP_Query per rail, which would lose the shop
+ * loop's own card hooks.
+ *
+ * @param string|null|false $slug Slug to set, null to clear, false to read.
+ * @return string The slug currently in force, '' when none.
+ */
+function sr_shortcode_collection( $slug = false ) {
+	static $current = '';
+
+	if ( false !== $slug ) {
+		$current = is_string( $slug ) ? sanitize_title( $slug ) : '';
+	}
+
+	return $current;
+}
+
+/**
+ * Restrict a [products] row to one collection.
+ *
+ * Merged into any tax_query the shortcode already built - the Formals grid asks
+ * for a category as well - rather than replacing it, and with an explicit AND
+ * relation so a row can be scoped by both at once.
+ */
+add_filter( 'woocommerce_shortcode_products_query', function ( $query_args ) {
+	$slug = sr_shortcode_collection();
+	if ( '' === $slug || ! taxonomy_exists( 'sr_collection' ) ) {
+		return $query_args;
+	}
+
+	$tax_query = isset( $query_args['tax_query'] ) && is_array( $query_args['tax_query'] )
+		? $query_args['tax_query']
+		: array();
+
+	$tax_query[] = array(
+		'taxonomy' => 'sr_collection',
+		'field'    => 'slug',
+		'terms'    => array( $slug ),
+	);
+
+	if ( count( $tax_query ) > 1 ) {
+		$tax_query['relation'] = 'AND';
+	}
+
+	$query_args['tax_query'] = $tax_query; // phpcs:ignore WordPress.DB.SlowDBQuery -- a taxonomy row is the whole point of this filter.
+
+	return $query_args;
+} );
+
+/**
  * A horizontally browsable row of products.
  *
  * The homepage puts merchandise in front of the visitor at several points in
@@ -1770,7 +1934,12 @@ add_filter( 'woocommerce_general_settings', function ( $settings ) {
  *     @type array  $atts      [products] shortcode attributes.
  *     @type string $cta_url   Destination for the trailing "view all" button.
  *     @type string $cta_label Label for that button.
- *     @type string $class     Extra class on the <section>.
+ *     @type string $class      Extra class on the <section>.
+ *     @type string $collection sr_collection term slug to restrict the row to.
+ *                              The [products] shortcode understands product_cat
+ *                              and product attributes but has no attribute for a
+ *                              custom taxonomy, so this is applied through the
+ *                              shortcode's own query filter instead.
  *     @type string $layout    'rail' (default) for a horizontal scroller, or
  *                             'grid' for a static grid across the content
  *                             width. A page of identical scrollers stops
@@ -1781,14 +1950,15 @@ function sr_product_rail( $args ) {
 	$args = wp_parse_args(
 		$args,
 		array(
-			'key'       => '',
-			'eyebrow'   => '',
-			'heading'   => '',
-			'atts'      => array(),
-			'cta_url'   => '',
-			'cta_label' => '',
-			'class'     => '',
-			'layout'    => 'rail',
+			'key'        => '',
+			'eyebrow'    => '',
+			'heading'    => '',
+			'atts'       => array(),
+			'cta_url'    => '',
+			'cta_label'  => '',
+			'class'      => '',
+			'collection' => '',
+			'layout'     => 'rail',
 		)
 	);
 
@@ -1804,7 +1974,17 @@ function sr_product_rail( $args ) {
 		$pairs .= sprintf( ' %s="%s"', sanitize_key( $name ), esc_attr( $value ) );
 	}
 
+	$collection = sanitize_title( $args['collection'] );
+	if ( '' !== $collection ) {
+		sr_shortcode_collection( $collection );
+	}
+
 	$html = do_shortcode( '[products' . $pairs . ']' );
+
+	// Cleared unconditionally: do_shortcode() can bail before the filter runs
+	// (an unregistered shortcode, a fatal in another callback), and a slug left
+	// standing would silently restrict the next rail on the page.
+	sr_shortcode_collection( null );
 
 	// The shortcode returns its own "no products were found" notice rather than
 	// an empty string. That notice carries no list item, so the presence of one
@@ -2332,18 +2512,20 @@ function sr_single_price() {
 add_action( 'woocommerce_single_product_summary', 'sr_single_price', 10 );
 
 /**
- * Related products: eight, four across, rather than WooCommerce's three.
+ * Related products: six, three across, rather than WooCommerce's three.
  *
  * Three pieces read as the tail end of a row that ran out rather than a
  * deliberate selection, and with 17 formals in the catalogue there is plenty to
- * show. Eight fills two clean rows at the width the grid below settles on.
+ * show. Six fills two clean rows at the three-column count every other grid on
+ * the site uses — it was eight across four columns, which made a related card a
+ * third narrower than the very card it links to.
  *
  * @param array $args Query args.
  * @return array
  */
 function sr_related_products_args( $args ) {
-	$args['posts_per_page'] = 8;
-	$args['columns']        = 4;
+	$args['posts_per_page'] = 6;
+	$args['columns']        = 3;
 
 	return $args;
 }
@@ -2433,7 +2615,7 @@ add_action( 'wp_loaded', function () {
  */
 function sr_atelier_note() {
 	$lead = (string) get_post_meta( get_the_ID(), '_sr_delivery_time', true );
-	$lead = '' !== trim( $lead ) ? $lead : __( '8-9 weeks', 'samina-rasul' );
+	$lead = '' !== trim( $lead ) ? $lead : __( '10–12 weeks', 'samina-rasul' );
 
 	/*
 	 * Every write-up in the catalogue ends its customisation block with "Prices
@@ -2483,16 +2665,19 @@ function sr_atelier_note() {
 	<?php
 }
 /*
- * Directly under the cart row: the terms are read after the decision to buy,
- * not before it. Priority 20 puts it after the save-for-later heart, which
- * hooks the same action at 10.
+ * Bridals only.
  *
- * A bridal piece is not purchasable, so no cart form renders and that hook
- * never fires - which left the note off the one page whose whole proposition
- * is "made to order, 50% deposit". Priority 36 on the summary puts it in the
- * same place there, just after the trust row's own hook at 35.
+ * A bridal piece is not purchasable: there is no cart, no price and no date, so
+ * the note is the page - "made to order, 50% deposit, ten to twelve weeks" is
+ * the whole proposition and there is nowhere else to read it. A formal is the
+ * opposite. It has a price, a size, a delivery window in the trust row and a
+ * cart button, and repeating the terms directly above that button turned a
+ * one-click purchase into a paragraph of conditions. The spec table and the
+ * trust row already carry the lead time; checkout carries the deposit rule
+ * (samina-core/order-terms.php).
+ *
+ * Priority 36 on the summary puts it just after the trust row's own hook at 35.
  */
-add_action( 'woocommerce_after_add_to_cart_button', 'sr_atelier_note', 20 );
 add_action( 'woocommerce_single_product_summary', function () {
 	global $product;
 	if ( $product instanceof WC_Product && ! $product->is_purchasable() ) {
@@ -2805,7 +2990,7 @@ function sr_consultation_shortcode() {
 		),
 		array(
 			'title' => __( 'Colour &amp; Timing', 'samina-rasul' ),
-			'copy'  => __( 'The palette has to hold up in your event\'s daylight or lamplight. Set against our seven to nine week making time, that is what makes a date realistic.', 'samina-rasul' ),
+			'copy'  => __( 'The palette has to hold up in your event\'s daylight or lamplight. Set against our ten to twelve week making time for bridals, that is what makes a date realistic.', 'samina-rasul' ),
 		),
 	);
 
@@ -2838,7 +3023,7 @@ function sr_consultation_shortcode() {
 	);
 
 	$prepare = array(
-		array( __( 'The occasion date', 'samina-rasul' ), __( 'Your deadline tells us what is achievable inside the seven to nine week window.', 'samina-rasul' ) ),
+		array( __( 'The occasion date', 'samina-rasul' ), __( 'Your deadline tells us what is achievable inside the ten to twelve week window.', 'samina-rasul' ) ),
 		array( __( 'Colour palette', 'samina-rasul' ), __( 'Any shades, inspiration or family heirloom you want the piece to sit beside.', 'samina-rasul' ) ),
 		array( __( 'Silhouette preference', 'samina-rasul' ), __( 'Lehnga, pishwas, gharara, or a contemporary long shirt.', 'samina-rasul' ) ),
 		array( __( 'Budget range', 'samina-rasul' ), __( 'This is what lets us recommend the right cloth and the right weight of handwork.', 'samina-rasul' ) ),
@@ -2851,7 +3036,7 @@ function sr_consultation_shortcode() {
 			__( 'Every piece is made to order. The advance buys the cloth and books your slot with the artisans who will do the handwork. The balance is due before dispatch.', 'samina-rasul' ),
 		),
 		array(
-			__( 'What if I need the piece in under seven weeks?', 'samina-rasul' ),
+			__( 'What if I need the piece in under ten weeks?', 'samina-rasul' ),
 			__( 'Sometimes possible, depending on what is already in the atelier. Say your date in the first message and we will tell you honestly whether we can meet it.', 'samina-rasul' ),
 		),
 		array(
@@ -2911,7 +3096,7 @@ function sr_consultation_shortcode() {
 				</div>
 				<ul class="sr-cs-hero__badges" data-sr-reveal>
 					<li><span class="sr-cs-badge__title"><?php esc_html_e( 'No consultation fee', 'samina-rasul' ); ?></span><span class="sr-cs-badge__desc"><?php esc_html_e( 'Initial design discussion', 'samina-rasul' ); ?></span></li>
-					<li><span class="sr-cs-badge__title"><?php esc_html_e( '7–9 weeks', 'samina-rasul' ); ?></span><span class="sr-cs-badge__desc"><?php esc_html_e( 'Average delivery time', 'samina-rasul' ); ?></span></li>
+					<li><span class="sr-cs-badge__title"><?php esc_html_e( '10–12 weeks', 'samina-rasul' ); ?></span><span class="sr-cs-badge__desc"><?php esc_html_e( 'Average delivery time', 'samina-rasul' ); ?></span></li>
 					<li><span class="sr-cs-badge__title"><?php esc_html_e( '50% advance', 'samina-rasul' ); ?></span><span class="sr-cs-badge__desc"><?php esc_html_e( 'To begin hand-crafting', 'samina-rasul' ); ?></span></li>
 				</ul>
 			</div>

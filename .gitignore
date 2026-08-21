@@ -72,3 +72,9 @@ site/wp-content/languages/
 # --- Catalogue photography (23 MB of client images; shipped to the server by
 # rsync, not by git). ---
 catalog/images/
+
+# --- Outfit films (1.1 GB of client masters). Same rule as the photography:
+# the masters stay on the client's machine, the web-encoded versions are built
+# from them and rsynced to the server. Neither belongs in git history. ---
+catalog/Outfit Videos/
+catalog/videos-web/

@@ -404,7 +404,7 @@ function sr_home_fields() {
 			'section' => 'sr_about',
 			'type'    => 'textarea',
 			'label'   => __( 'Craft 3 · body', 'samina-rasul' ),
-			'default' => __( 'Nothing here exists before it is ordered. Each piece is cut to your measurements and finished over seven to nine weeks in the atelier. That patience is the point - it is the difference between a dress and a piece you keep.', 'samina-rasul' ),
+			'default' => __( 'Nothing here exists before it is ordered. Each piece is cut to your measurements and finished over seven to twelve weeks in the atelier. That patience is the point - it is the difference between a dress and a piece you keep.', 'samina-rasul' ),
 		),
 		'sr_about_pillars_heading'  => array(
 			'section' => 'sr_about',
@@ -474,7 +474,116 @@ function sr_home_fields() {
 		),
 	);
 
+	/*
+	 * 08 · Page banners.
+	 *
+	 * The masthead photograph behind each shop landing page. These were only
+	 * settable as the category's own image in Products → Categories, which the
+	 * client had no reason to look in - and collections (sr_collection) have no
+	 * image field there at all, so /collection/ujala/ could not have a banner
+	 * however hard anyone looked. Registered from the same list the front end
+	 * resolves against, so adding a collection here is the only step needed.
+	 */
+	foreach ( sr_banner_targets() as $key => $target ) {
+		$fields[ 'sr_banner_' . $key ] = array(
+			'section'     => 'sr_banners',
+			'type'        => 'image',
+			'label'       => $target['label'],
+			'description' => __( 'Full-bleed behind the page title. Landscape, at least 1920px wide. Leave empty to use the category image set in Products → Categories.', 'samina-rasul' ),
+		);
+	}
+
+	/*
+	 * 09 · Measurement diagrams, shown inside the Custom Size dialog
+	 * (mu-plugins/samina-core/custom-size.php). Uploaded rather than drawn into
+	 * the theme because they are the atelier's own technical illustrations.
+	 */
+	$fields['sr_size_diagram_front'] = array(
+		'section'     => 'sr_sizing',
+		'type'        => 'image',
+		'label'       => __( 'Front measurements diagram', 'samina-rasul' ),
+		'description' => __( 'Shown beside the front measurement fields. A line drawing on a white ground, portrait, about 800px wide.', 'samina-rasul' ),
+	);
+	$fields['sr_size_diagram_back']  = array(
+		'section'     => 'sr_sizing',
+		'type'        => 'image',
+		'label'       => __( 'Back measurements diagram', 'samina-rasul' ),
+		'description' => __( 'Shown beside the back measurement fields.', 'samina-rasul' ),
+	);
+
 	return $fields;
+}
+
+/**
+ * The shop landing pages that carry an editable masthead.
+ *
+ * One list, read by both the Customizer registration above and
+ * sr_archive_banner_id() below, so a page cannot appear in one and not the
+ * other. Keyed by the setting suffix; 'taxonomy' and 'slug' are what the front
+ * end matches the queried term against.
+ *
+ * @return array<string, array{label:string, taxonomy:string, slug:string}>
+ */
+function sr_banner_targets() {
+	return array(
+		'formals' => array(
+			'label'    => __( 'Formals', 'samina-rasul' ),
+			'taxonomy' => 'product_cat',
+			'slug'     => 'formals',
+		),
+		'bridals' => array(
+			'label'    => __( 'Bridals', 'samina-rasul' ),
+			'taxonomy' => 'product_cat',
+			'slug'     => 'bridals',
+		),
+		'dhanak'  => array(
+			'label'    => __( 'Dhanak collection', 'samina-rasul' ),
+			'taxonomy' => 'sr_collection',
+			'slug'     => 'dhanak',
+		),
+		'ujala'   => array(
+			'label'    => __( 'Ujala collection', 'samina-rasul' ),
+			'taxonomy' => 'sr_collection',
+			'slug'     => 'ujala',
+		),
+	);
+}
+
+/**
+ * The masthead image for an archive, as an attachment id.
+ *
+ * Resolution order: the Customizer choice for this exact term, then the term's
+ * own image where the taxonomy has one (product categories do, collections do
+ * not). 0 when neither is set, which is the signal the templates already use to
+ * draw the ornament placeholder instead.
+ *
+ * @param WP_Term|null $term Queried term. Falls back to the queried object.
+ * @return int Attachment id, or 0.
+ */
+function sr_archive_banner_id( $term = null ) {
+	if ( ! $term instanceof WP_Term ) {
+		$term = get_queried_object();
+	}
+
+	if ( ! $term instanceof WP_Term ) {
+		return 0;
+	}
+
+	foreach ( sr_banner_targets() as $key => $target ) {
+		if ( $target['taxonomy'] === $term->taxonomy && $target['slug'] === $term->slug ) {
+			$chosen = sr_home_image_id( 'sr_banner_' . $key );
+			if ( $chosen > 0 ) {
+				return $chosen;
+			}
+			break;
+		}
+	}
+
+	// Product categories keep their wp-admin image as the fallback, so nothing
+	// the client set before this section existed is lost.
+	$thumbnail_id = (int) get_term_meta( $term->term_id, 'thumbnail_id', true );
+
+	return ( $thumbnail_id > 0 && wp_get_attachment_image_url( $thumbnail_id ) ) ? $thumbnail_id : 0;
 }
 
 /**
@@ -740,6 +849,8 @@ function sr_register_homepage_customizer( $wp_customize ) {
 		'sr_home_bridals'     => __( 'Bridals section', 'samina-rasul' ),
 		'sr_lookbook'         => __( 'Bridals lookbook page', 'samina-rasul' ),
 		'sr_about'            => __( 'About us page', 'samina-rasul' ),
+		'sr_banners'          => __( 'Page banners', 'samina-rasul' ),
+		'sr_sizing'           => __( 'Custom size diagrams', 'samina-rasul' ),
 	);
 
 	$priority = 10;

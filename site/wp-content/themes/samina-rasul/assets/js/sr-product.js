@@ -355,4 +355,82 @@
 		 * event this file can listen for, so watch the select's children. */
 		new MutationObserver(sync).observe(select, { childList: true });
 	});
+
+	/* ---------------- Blocked add-to-cart, as a notice ----------------
+	 *
+	 * WooCommerce answers a click on a disabled cart button with
+	 * `window.alert()` (add-to-cart-variation.js, VariationForm.onAddToCart).
+	 * A system alert on a couture product page is jarring, unstyleable, and on
+	 * mobile it covers the very control the customer needs to reach.
+	 *
+	 * This replaces it with the same notice the measurement dialog uses. The
+	 * listener is on the button in the CAPTURE phase, so it runs before
+	 * WooCommerce's own delegated handler on the form; stopping propagation
+	 * there is what prevents the alert, and preventDefault is what stops the
+	 * submit.
+	 *
+	 * Any other script can block the cart the same way by setting
+	 * `form.cart[data-sr-block]` to the message it wants shown — which is how
+	 * sr-custom-size.js refuses an incomplete measurement sheet.
+	 */
+	var cartForm = document.querySelector('form.cart');
+	var cartButton = cartForm && cartForm.querySelector('.single_add_to_cart_button');
+
+	if (cartForm && cartButton) {
+		var notice = null;
+
+		var noticeEl = function () {
+			if (notice) { return notice; }
+			notice = document.createElement('p');
+			notice.className = 'sr-cart-notice';
+			notice.setAttribute('role', 'alert');
+			notice.hidden = true;
+			/* After the button's own row, so the message appears under the
+			 * control it refers to rather than at the top of the column. */
+			(cartButton.closest('.woocommerce-variation-add-to-cart') || cartForm)
+				.insertAdjacentElement('afterend', notice);
+			return notice;
+		};
+
+		var hideNotice = function () {
+			if (notice) { notice.hidden = true; }
+		};
+
+		var blockedMessage = function () {
+			/* Our own reason wins: it is more specific than "select an option",
+			 * which is what WooCommerce would say about a size that has in fact
+			 * been selected. */
+			var own = cartForm.getAttribute('data-sr-block');
+			if (own) { return own; }
+
+			if (!cartButton.classList.contains('disabled')) { return ''; }
+
+			var strings = window.wc_add_to_cart_variation_params || {};
+			return cartButton.classList.contains('wc-variation-is-unavailable')
+				? (strings.i18n_unavailable_text || 'Sorry, this piece is unavailable. Please choose a different combination.')
+				: (strings.i18n_make_a_selection_text || 'Please select a size before adding this piece to your cart.');
+		};
+
+		cartButton.addEventListener('click', function (event) {
+			var message = blockedMessage();
+			if (!message) { hideNotice(); return; }
+
+			event.preventDefault();
+			/* Immediate, not plain stopPropagation: WooCommerce's handler is
+			 * delegated from the form, and other handlers may sit on the button
+			 * itself. */
+			event.stopImmediatePropagation();
+
+			var el = noticeEl();
+			el.textContent = message;
+			el.hidden = false;
+			el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+		}, true);
+
+		/* Choosing anything clears a stale complaint. */
+		cartForm.addEventListener('change', hideNotice);
+		cartForm.addEventListener('click', function (event) {
+			if (event.target.closest('.sr-swatch, [data-sr-cs-open]')) { hideNotice(); }
+		});
+	}
 })();

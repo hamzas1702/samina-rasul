@@ -99,9 +99,21 @@
 	if (preloader && docEl.classList.contains('sr-preload')) {
 		heroDelay = 0.9;
 		try { sessionStorage.setItem('srSeen', '1'); } catch (e) {}
+		/* Monogram, then the name, then out. Budgeted to finish around 1.9s:
+		 * the inline watchdog in the <head> tears the overlay down at 2.5s, so
+		 * anything slower than that gets cut off mid-animation on a slow
+		 * connection - which is what made this feel inconsistent from one visit
+		 * to the next. */
 		gsap.timeline()
-			.to('.sr-preloader__word span', { yPercent: 0, y: 0, autoAlpha: 1, stagger: 0.045, duration: 0.5, ease: 'power3.out' })
-			.to('.sr-preloader__word span', { autoAlpha: 0, duration: 0.3, delay: 0.25, ease: 'power1.in' })
+			.to(preloader.querySelector('.sr-preloader__mark'), {
+				autoAlpha: 1, scale: 1, duration: 0.55, ease: 'power2.out'
+			})
+			.to('.sr-preloader__word span', {
+				yPercent: 0, y: 0, autoAlpha: 1, stagger: 0.035, duration: 0.45, ease: 'power3.out'
+			}, '-=0.25')
+			.to(preloader.querySelector('.sr-preloader__inner'), {
+				autoAlpha: 0, duration: 0.28, delay: 0.2, ease: 'power1.in'
+			})
 			.to(preloader, {
 				yPercent: -100, duration: 0.6, ease: 'expo.inOut',
 				onComplete: function () { docEl.classList.remove('sr-preload'); preloader.remove(); }
@@ -194,6 +206,42 @@
 			}
 		});
 	}
+
+	/* ---------------- Keep the trigger positions honest ----------------
+	 *
+	 * ScrollTrigger measures once and caches. On a product page the document
+	 * then changes height dramatically: WooCommerce's gallery starts as every
+	 * slide stacked vertically and collapses to one when FlexSlider initialises,
+	 * which happens after this file has run. The cached positions were left
+	 * describing a document ten times taller than the real one - related-product
+	 * cards had start positions past 42,000px in a 3,700px page, so their reveal
+	 * could never fire and the whole "Related products" row stayed at
+	 * opacity 0 / visibility hidden. The heading rendered, the products did not.
+	 *
+	 * A ResizeObserver on the body catches that collapse, and every other cause
+	 * of the same bug - a late web font, a lazy image, an accordion - without
+	 * this file needing to know about any of them. Debounced, and only when the
+	 * height actually moved, so it costs nothing on a stable page.
+	 */
+	var lastHeight = document.body.scrollHeight;
+	var refreshTimer = null;
+
+	var scheduleRefresh = function () {
+		if (refreshTimer) { clearTimeout(refreshTimer); }
+		refreshTimer = setTimeout(function () {
+			refreshTimer = null;
+			if (document.body.scrollHeight === lastHeight) { return; }
+			lastHeight = document.body.scrollHeight;
+			ScrollTrigger.refresh();
+		}, 200);
+	};
+
+	if (typeof ResizeObserver !== 'undefined') {
+		new ResizeObserver(scheduleRefresh).observe(document.body);
+	}
+	/* Belt and braces for the common case, since images finishing is the usual
+	 * reason the first measurement was wrong. */
+	window.addEventListener('load', scheduleRefresh);
 
 	// Scroll-triggered masked-line reveals (manifesto and any [data-sr-lines] block).
 	gsap.utils.toArray('[data-sr-lines]').forEach(function (section) {

@@ -159,17 +159,20 @@ $sr_pillar_marks = array(
 		</div>
 	</div>
 
-	<!-- 03 · Latest pieces, in a browsable editorial rail. -->
+	<!-- 03 · Latest pieces, in a browsable editorial rail. Scoped to the Ujala
+	     collection: "new arrivals" on a made-to-order catalogue means the
+	     collection currently being cut, not whatever was published last. -->
 	<?php
 	sr_product_rail(
 		array(
-			'key'       => 'new',
-			'class'     => 'sr-atelier',
-			'eyebrow'   => sr_home_text( 'sr_home_atelier_eyebrow' ),
-			'heading'   => sr_home_text( 'sr_home_atelier_heading' ),
-			'atts'      => array( 'limit' => 8, 'columns' => 4, 'orderby' => 'date' ),
-			'cta_url'   => sr_shop_url(),
-			'cta_label' => __( 'View all pieces', 'samina-rasul' ),
+			'key'        => 'new',
+			'class'      => 'sr-atelier',
+			'eyebrow'    => sr_home_text( 'sr_home_atelier_eyebrow' ),
+			'heading'    => sr_home_text( 'sr_home_atelier_heading' ),
+			'collection' => 'ujala',
+			'atts'       => array( 'limit' => 8, 'columns' => 4, 'orderby' => 'date' ),
+			'cta_url'    => sr_term_url( 'ujala', 'sr_collection' ),
+			'cta_label'  => __( 'View the Ujala collection', 'samina-rasul' ),
 		)
 	);
 	?>
@@ -208,20 +211,23 @@ $sr_pillar_marks = array(
 		</div>
 	</section>
 
-	<!-- 03b · The Formals edit: the everyday-luxury path, shoppable in place. -->
+	<!-- 03b · The Dhanak edit: the everyday-luxury path, shoppable in place. -->
 	<?php
 	sr_product_rail(
 		array(
-			'key'       => 'formals',
-			'class'     => 'sr-rail--formals',
-			// The house's main revenue category gets the full width of the
+			'key'        => 'dhanak',
+			'class'      => 'sr-rail--formals',
+			// The house's main revenue collection gets the full width of the
 			// content column, laid out rather than scrolled.
-			'layout'    => 'grid',
-			'eyebrow'   => __( 'Ready to order', 'samina-rasul' ),
-			'heading'   => __( 'The Formals edit', 'samina-rasul' ),
-			'atts'      => array( 'limit' => 8, 'columns' => 4, 'category' => 'formals', 'orderby' => 'date' ),
-			'cta_url'   => sr_term_url( 'formals', 'product_cat' ),
-			'cta_label' => __( 'Shop all Formals', 'samina-rasul' ),
+			'layout'     => 'grid',
+			'eyebrow'    => __( 'Ready to order', 'samina-rasul' ),
+			'heading'    => __( 'The Dhanak edit', 'samina-rasul' ),
+			'collection' => 'dhanak',
+			// Six, not eight: the cards run three across now, so eight left a
+			// short row of two under two full ones.
+			'atts'       => array( 'limit' => 6, 'columns' => 3, 'orderby' => 'date' ),
+			'cta_url'    => sr_term_url( 'dhanak', 'sr_collection' ),
+			'cta_label'  => __( 'Shop all Dhanak', 'samina-rasul' ),
 		)
 	);
 	?>
@@ -427,7 +433,7 @@ $sr_pillar_marks = array(
 		<span class="sr-values__word sr-values__word--2" data-sr-drift="-12" aria-hidden="true"><?php esc_html_e( 'Handwork', 'samina-rasul' ); ?></span>
 		<span class="sr-values__word sr-values__word--3" data-sr-drift="20" aria-hidden="true"><?php esc_html_e( 'Patience', 'samina-rasul' ); ?></span>
 		<div class="sr-values__body" data-sr-reveal>
-			<p><?php esc_html_e( 'Nothing here is mass produced. Every order begins as uncut cloth and passes through the hands of embellishers who have practised zardozi, mukesh, resham and gota for generations. That is why a piece takes seven to nine weeks, and why no two are ever quite the same.', 'samina-rasul' ); ?></p>
+			<p><?php esc_html_e( 'Nothing here is mass produced. Every order begins as uncut cloth and passes through the hands of embellishers who have practised zardozi, mukesh, resham and gota for generations. That is why a formal piece takes seven to eight weeks and a bridal ten to twelve, and why no two are ever quite the same.', 'samina-rasul' ); ?></p>
 			<a class="button sr-ghost" href="<?php echo esc_url( sr_page_url( 'about-us' ) ); ?>"><span><?php esc_html_e( 'About the house', 'samina-rasul' ); ?></span></a>
 		</div>
 	</section>
@@ -451,7 +457,7 @@ $sr_pillar_marks = array(
 					'mark'    => 'stitch',
 					'eyebrow' => __( 'In the atelier', 'samina-rasul' ),
 					'title'   => __( 'The making', 'samina-rasul' ),
-					'copy'    => __( 'Your piece is cut, embellished and finished by hand over seven to nine weeks. A 50% advance confirms the order, and international orders require 100%.', 'samina-rasul' ),
+					'copy'    => __( 'Your piece is cut, embellished and finished by hand — seven to eight weeks for a formal, ten to twelve for a bridal. A 50% advance confirms the order, and international orders require 100%.', 'samina-rasul' ),
 				),
 				array(
 					'mark'    => 'ribbon',

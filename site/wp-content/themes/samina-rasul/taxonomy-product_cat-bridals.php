@@ -20,9 +20,11 @@ get_header();
 
 $sr_term = get_queried_object();
 
+// Customizer → Site Content → Page banners, falling back to the category's own
+// image in wp-admin.
 $sr_hero_image = '';
 if ( $sr_term instanceof WP_Term ) {
-	$sr_hero_id = (int) get_term_meta( $sr_term->term_id, 'thumbnail_id', true );
+	$sr_hero_id = sr_archive_banner_id( $sr_term );
 	if ( $sr_hero_id > 0 ) {
 		// The LCP element: srcset and dimensions matter more here than anywhere
 		// else on the page, so it goes through wp_get_attachment_image().

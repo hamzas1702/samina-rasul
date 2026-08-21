@@ -45,18 +45,40 @@ function sr_catalog_columns() {
 
 /**
  * Sizes every garment is offered in. "Customized" is the made-to-measure route
- * and is what the size guide points at - see sr_size_chart_image() in the theme.
+ * and is what the size guide points at - see sr_size_chart_image() in the theme
+ * and the measurement dialog in samina-core/custom-size.php.
+ *
+ * ML was dropped at the house's request: it sat between two sizes it was never
+ * cut differently from, and anyone between sizes is better served by
+ * "Customized", which now actually collects the measurements.
  */
 function sr_catalog_sizes() {
-	return 'XS, S, M, ML, L, XL, Customized';
+	return 'XS, S, M, L, XL, Customized';
 }
 
 /**
- * House lead time, used when a write-up does not state one. Matches the theme's
- * own fallback in sr_atelier_note() so the page never contradicts the data.
+ * Lead time for a category.
+ *
+ * The write-ups state a time per piece, but the real driver is the category:
+ * a formal is a shorter build than a bridal, whatever the collection. This is
+ * the single source of truth for both the catalogue CSV and the live products,
+ * so the site cannot end up quoting one figure on the product page and another
+ * in the atelier note.
+ *
+ * @param string $category_slug 'formals' or 'bridals'.
+ * @return string Lead time, e.g. '7–8 weeks'.
+ */
+function sr_delivery_for_category( $category_slug ) {
+	return 'bridals' === strtolower( trim( (string) $category_slug ) )
+		? '10–12 weeks'
+		: '7–8 weeks';
+}
+
+/**
+ * House lead time, used when a row states no category at all.
  */
 function sr_catalog_default_delivery() {
-	return '8-9 weeks';
+	return sr_delivery_for_category( 'formals' );
 }
 
 /**

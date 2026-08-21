@@ -238,6 +238,226 @@ returned, which is how the cause was confirmed rather than guessed.
 `!important` declarations. Both want a build step and a visual-regression pass
 respectively; neither is a change worth making blind.
 
+## Storefront overhaul (2026-08-21)
+
+Cards, imagery, sizing, video and — for the first time — a way to take money.
+
+### The store had no payment method at all
+
+`woocommerce_bacs_settings` did not exist in the database and no gateway was
+enabled, so the checkout could not complete an order. `tools/seed/seed-8-payments.php`
+turns on WooCommerce's BACS gateway, writes the house account onto it and disables
+every other gateway. Gateway settings live in options rather than code, so it is a
+script; it is idempotent and it verifies at the end that `bacs` is the only
+available gateway.
+
+`mu-plugins/samina-core/bank-transfer.php` handles everything after the order:
+
+- A **"Payment under review"** order status (`wc-sr-verifying`), slotted directly
+  after On hold.
+- A **receipt upload** on the thank-you page and on My account → Orders. The order
+  is placed first and the receipt comes afterwards, so a failed upload never costs
+  the house an order. Uploading moves the status, writes an order note and emails
+  the shop.
+- Receipts are treated as sensitive: stored **outside the media library** under a
+  128-bit random filename, `chmod 0600`, in a directory carrying `.htaccess`,
+  `web.config` and `index.php` guards, and served back only through an
+  `admin-post` endpoint gated on `edit_shop_orders`. They are deleted when the
+  order is deleted and when WooCommerce erases a customer's personal data.
+- **The guard files are config, not code.** Apache and LiteSpeed honour the
+  `.htaccess`; nginx and PHP's built-in dev server do not. The random filename is
+  the layer that holds everywhere. **After the first deploy, confirm a receipt URL
+  returns 403 on the live server** — if the host is nginx, add the equivalent
+  `location` deny block.
+
+Validation was tested against a disguised PHP file (`type`), a 6 MB upload
+(`toobig`) and a real JPEG (`ok`), plus a wrong order key and a bad nonce (both
+403).
+
+### Made-to-measure sizing actually collects measurements
+
+"Customized" has been the seventh size on every product since the import, and the
+size guide has been promising "we will cut to your measurements" while collecting
+none. `mu-plugins/samina-core/custom-size.php` gives that promise two routes —
+**Request Call Back** (name, telephone, preferred time) and **Enter Size Manually**
+(fifteen measurements over a Front and a Back step) — following the capture,
+validate, display, persist pattern `fabric-addons.php` established. Nothing here
+touches price.
+
+`tools/qa/test-custom-size.php` covers what the browser cannot be trusted to
+enforce: 32 assertions including zero, non-numeric text, out-of-range values,
+unknown fields, a scalar payload, and phone/name bounds. Run from `site/`:
+
+```
+../.tools/wp eval-file ../tools/qa/test-custom-size.php
+```
+
+Note the harness uses a **static** accumulator, not `global`. `wp eval-file`
+includes the script inside a function, so a file-scope variable is a local and
+`global $failures` binds to a different, permanently empty one — the first version
+of this suite printed "0 checks, 0 failures" while thirty-one checks passed, and
+would have exited 0 had they failed. `test-addon-pricing.php` already documented
+the same trap; both now also fail when the suite runs too few checks.
+
+### Sizes and lead times
+
+- `ML` retired. `tools/seed/seed-7-sizes-delivery.php` reconciles every product to
+  `XS, S, M, L, XL, Customized` and deletes the term once nothing points at it.
+- Lead time is now **category-driven** rather than inherited from each write-up:
+  formals 7–8 weeks, bridals 10–12. `sr_delivery_for_category()` in `seed-lib.php`
+  is the single source of truth for both the CSV and the live products, and every
+  hardcoded "seven to nine weeks" across `functions.php`, `front-page.php` and the
+  Customizer defaults was corrected to match.
+- The **Atelier Note is now bridals-only**. On a formal it repeated the lead time
+  and deposit rule directly above a one-click Add to Cart; on a bridal, which has
+  no price and no cart, it *is* the proposition.
+
+### Cards and imagery
+
+- One call to action per card (WooCommerce's own, which `bridal-flow.php` turns
+  into "Inquire"), no short description. The removed "View details" button pointed
+  at the same permalink as the button beside it.
+- **The crispness bug was `sizes`, not resolution.** Cards called
+  `woocommerce_get_product_thumbnail()`, which takes no attributes, so images went
+  out with `sizes="(max-width: 324px) 100vw, 324px"` — a promise the browser kept,
+  picking the smallest candidate and upscaling it. Cards now render through
+  `$product->get_image()` with a real `sizes` string.
+- Registered sizes were Storefront's 324px hard-cropped **square**. They are now
+  600×900 (2:3, cropped), 1000-wide single (uncropped) and 180×270 gallery thumbs.
+- **154 of 174 catalogue images are 2:3.** Card boxes moved from `3/4` to `2/3`, so
+  the frame matches the photograph instead of cutting a strip off every piece. The
+  product gallery uses `2/3` with `object-fit: contain`, so the ~20 off-ratio files
+  letterbox onto cream rather than crop.
+- Grids state their column counts (3 / 2 / 1) rather than deriving them from a
+  minimum track: `auto-fill` against a large minimum landed on two columns at 1280
+  and one at 760, which is not a layout anyone chose.
+- `--sr-content-max` 1320px → 1560px.
+
+> **Deploy step:** the new image sizes only apply to files regenerated against
+> them. Run `wp media regenerate --yes` after deploying. This could not be done
+> locally — the bundled static PHP's GD has no JPEG, PNG or WebP **encoders**
+> (`imagejpeg()` does not exist), so `wp_get_image_editor()` returns "No editor
+> could be selected" and **no attachment on this machine has any sub-sizes at
+> all**. That is also why the local site serves 1200×1800 originals with an empty
+> `srcset`.
+
+### Product video
+
+`_sr_product_video` (a media-library id, validated as a video attachment on save)
+on Product data → General. Rendered as the **first gallery slide** by prepending to
+the featured image's markup — `woocommerce_product_thumbnails` fires after it and
+would make the film slide two. The slide carries
+`class="woocommerce-product-gallery__image"` and a `data-thumb`, which is what
+FlexSlider's selector and thumbnail strip require, so it gets its own thumbnail
+without the slider being re-taught anything.
+
+### Customizer and collections
+
+- New **Page banners** section: masthead images for Formals, Bridals, Dhanak and
+  Ujala. Previously only settable as a category image in Products → Categories —
+  and collections have no image field there at all, so `/collection/ujala/` could
+  not have a banner however hard anyone looked. `sr_archive_banner_id()` falls back
+  to the term thumbnail, so nothing already set is lost.
+- New **Custom size diagrams** section (front/back). **Not yet uploaded** — the
+  dialog renders a single centred column of fields until the atelier's own
+  technical illustrations are added.
+- `taxonomy-sr_collection.php` added. Collections had no template, so two links in
+  the main navigation fell through to Storefront's generic archive — sidebar, plain
+  H1, none of the house masthead. It delegates to `taxonomy-product_cat.php`, which
+  was already written for any product taxonomy.
+- Homepage section 1 (new arrivals rail) is scoped to **Ujala**, section 3 (grid) to
+  **Dhanak**, via a `woocommerce_shortcode_products_query` filter — the `[products]`
+  shortcode understands `product_cat` and attributes but has no attribute for a
+  custom taxonomy. The grid limit dropped 8 → 6 so two rows land square at three
+  columns.
+
+### Follow-up pass (same day)
+
+- **The photograph no longer overlaps the related products.** The gallery column
+  was `grid-row: 1 / span 2` with `align-self: stretch`, because the gallery
+  inside it was sticky and a sticky element can only travel within its own grid
+  area. The column therefore claimed the height of a row it did not own, and a
+  tall gallery ran on down the page underneath everything after it. Sticky is
+  gone at the client's request, so the span went with it.
+- **One corner language.** The file carried fourteen different radii chosen a
+  block at a time — a panel, the button inside it and the input beside that were
+  each rounded differently, and Add to Cart was square while the section behind
+  it was not. Four tokens (`--sr-radius-sm/md/lg/pill`) now cover everything;
+  the only literals left are `50%` circles. Eight controls that explicitly set
+  `border-radius: 0` were rounded; the five that remain at 0 are children of a
+  rounded, `overflow: hidden` parent that already clips them.
+- **`window.alert()` on a blocked cart is gone.** WooCommerce answers a click on
+  a disabled cart button with a system alert (`add-to-cart-variation.js`,
+  `VariationForm.onAddToCart`). `sr-product.js` now listens on the button in the
+  **capture** phase, so it runs before WooCommerce's delegated handler on the
+  form; stopping propagation there is what prevents the alert. Any script can
+  block the cart the same way by setting `form.cart[data-sr-block]` to a
+  message — which is how the measurement dialog refuses an empty sheet.
+- **Add to Cart is held while "Customized" has no details.** `aria-disabled`
+  rather than `disabled`, because the button has to stay clickable: the click is
+  what produces the explanation. The server-side refusal is unchanged.
+- **Choices read as three different objects.** Size pills and fabric rows sat on
+  white inside a cream column, so they read as holes punched in the panel; both
+  now carry a warm gradient and a hairline. The add-on box is the one meant to
+  catch the eye — solid sand border (dashed read as a dropzone), warm gradient,
+  a burgundy rule down the leading edge, and its legend on a filled chip instead
+  of a grey word floating in a gap.
+- **Bank details.** WooCommerce printed the account holder as an `<h3>` above the
+  list, so the page read "NOOR UL AEIN ARSHAD:" as a section title. It is now the
+  first row, labelled *Account title*, via `woocommerce_bacs_account_fields`;
+  the branch moved out of the instructions paragraph into a row of its own. Both
+  filters stand down when more than one account is configured, since the fields
+  list is reused for every account rendered. Sort code and BIC are dropped only
+  while empty. A WhatsApp line under the upload offers the receipt route the
+  client asked for, quoting the order number.
+- **Preloader** leads with the house monogram (`logo-mark.png`, the same one the
+  footer uses) and is budgeted to finish around 1.9s — the inline watchdog tears
+  the overlay down at 2.5s, so anything slower was being cut off mid-animation
+  on a slow connection, which is what made it feel different from one visit to
+  the next.
+- **Related products were rendering but invisible.** Every `li.product` sat at
+  `opacity: 0; visibility: hidden` — the pre-reveal state — so the heading showed
+  and the row under it did not. ScrollTrigger measures once and caches, and on a
+  product page the document then collapses: WooCommerce's gallery starts as every
+  slide stacked vertically and shrinks to one when FlexSlider initialises, after
+  `sr-ui.js` has run. The cached start positions were describing a document ten
+  times taller than the real one — related cards had triggers past **42,000px in
+  a 3,700px page**, which no amount of scrolling could reach. A debounced
+  `ResizeObserver` on `document.body` now calls `ScrollTrigger.refresh()` whenever
+  the height actually moves, which also covers late fonts and lazy images without
+  the file needing to know about any of them.
+- **Related grid matched to the rest of the site.** It kept its own
+  `auto-fill, minmax(17rem, …)`, resolving to four across — so a related card was
+  a third narrower than the very card it linked to. Now six products, three
+  across, inheriting the shared column counts: two clean rows.
+- **Air between one choice and the next.** WooCommerce lays variations out as a
+  `<table>`, one `<tr>` per attribute, and table rows take no margin — so the
+  second attribute's label ("FABRIC") sat directly on the first one's pills.
+- **Gold on the choices, outline on the add-on.** The warm gradient moved to the
+  two required choices (size pills, fabric rows), which is what the customer must
+  work through. The add-on box went back to quiet: white ground, a defined
+  burgundy hairline and a letterspaced legend in the border gap. A fill heavier
+  than the controls above it made an optional extra shout over a required choice.
+- **Summary column** dropped its gradient, border and large radius for a flat
+  cream tint; the panels inside it carry the structure.
+- **Lenis is working.** It is deliberately front-page-only — `functions.php:450`
+  adds `data-sr-smooth="true"` on `is_front_page()` and `sr-ui.js` opts in on
+  that attribute plus a fine pointer and no reduced-motion preference. Confirmed
+  on the home page: the library loads and Lenis puts its own class on `<html>`.
+  Inner pages use native scrolling as the stable baseline.
+
+### Known local-only noise
+
+Two symptoms, one cause — `sqlite-database-integration` against WooCommerce's HPOS
+orders table. Both verified as pre-existing, not regressions. Production runs MySQL.
+
+- `WC_Order::get_refunds()` emits `SQLSTATE[HY000]: General error: 20 datatype
+  mismatch`. Present with and without the new order status.
+- `wc_get_orders( array( 'limit' => -1 ) )` returns nothing and logs the same
+  error: `-1` compiles to `LIMIT 0, 18446744073709551615`, a MySQL idiom SQLite
+  rejects. **Use a finite limit when querying orders locally** — with one, the
+  `sr-verifying` status queries correctly by name and under `status => 'any'`.
+
 ## Local environment (no Docker/Homebrew needed)
 
 - Stack: static PHP 8.3 binary (`.tools/php`) + wp-cli (`.tools/wp`) + WordPress on **SQLite** (official `sqlite-database-integration` plugin) in `site/`.
