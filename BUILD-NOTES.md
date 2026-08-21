@@ -458,6 +458,65 @@ orders table. Both verified as pre-existing, not regressions. Production runs My
   rejects. **Use a finite limit when querying orders locally** — with one, the
   `sr-verifying` status queries correctly by name and under `status => 'any'`.
 
+## Going live (2026-08-21)
+
+Code ships on push to `main` (GitHub Actions → rsync). Everything below is data
+or media, which the deploy never carries, so it runs over SSH against the live
+store. All of it is idempotent and keyed on SKU.
+
+```bash
+SSHK=~/.ssh/github_hostinger_key
+RP=/home/u347856177/domains/saminarasul.com/public_html
+ssh -i $SSHK -p 65002 u347856177@195.35.49.153 "cd $RP && wp eval-file ~/sr-tools/seed/seed-7-sizes-delivery.php"
+ssh -i $SSHK -p 65002 u347856177@195.35.49.153 "cd $RP && wp eval-file ~/sr-tools/seed/seed-8-payments.php"
+ssh -i $SSHK -p 65002 u347856177@195.35.49.153 "cd $RP && SR_MEDIA_DIR=~/sr-media-stage wp eval-file ~/sr-tools/seed/seed-9-media.php"
+ssh -i $SSHK -p 65002 u347856177@195.35.49.153 "cd $RP && wp media regenerate --yes && wp cache flush"
+```
+
+### Encoding the outfit films
+
+The masters are 1080x1920 at 13–35 Mbps — near-master bitrates, 1.1 GB for 22
+clips, which no product page can serve. Encoded to 720x1280 / 30fps / H.264 High
+/ CRF 25, with `+faststart` so the browser can start playing on a range request
+instead of downloading the whole file:
+
+```bash
+ffmpeg -i in.mp4 -vf "scale=720:-2:flags=lanczos,fps=30" \
+  -c:v libx264 -profile:v high -pix_fmt yuv420p -preset slow -crf 25 \
+  -maxrate 3M -bufsize 6M -c:a aac -b:a 96k -movflags +faststart out.mp4
+```
+
+**1.1 GB → 50 MB, a 95.5% reduction.** CRF 25 was chosen over 27/29 after
+comparing frames at display size: this catalogue is sequins, gota and mukaish,
+and fine specular detail is exactly where compression shows first. The masters
+and the encodes are both gitignored — same rule as the photography.
+
+### The zero-padding trap, again
+
+The bridal SKUs are `DK-0010`…`DK-0014` in the catalogue but `DK-010`…`DK-012`
+on disk. `seed-9-media.php` parses both sides to (prefix, integer) rather than
+matching strings, and refuses to run if two SKUs collapse to the same pair. A
+naive `ltrim` would map `DK-011` to `DK-11`, which does not exist.
+
+### Two things the live store had that local did not
+
+- **Sizes sorted alphabetically** — "Customized, L, M, S, XL, XS". `pa_size`
+  sorts by `menu_order`, which for an attribute term means the `order` term
+  meta; live had none, so WooCommerce fell back to sorting by name. `seed-7`
+  now writes that order explicitly.
+- **Place Order was Storefront's #333**, not the house burgundy. WordPress
+  prints its global styles as `:root :where(.wp-element-button)`; `:where()`
+  contributes no specificity, so the rule ties with a single class and wins on
+  load order. Naming `.wp-element-button` alongside the component class settles
+  it without an `!important`.
+
+### Known, deliberately left alone
+
+`pa_size` still has an `ML` term with a count of 0. Two **trashed** sample
+products from an early import still reference it, and `seed-7` refuses to delete
+a term that is still in use rather than silently orphaning them. No published
+product offers ML. Empty the trash and re-run `seed-7` to clear it.
+
 ## Local environment (no Docker/Homebrew needed)
 
 - Stack: static PHP 8.3 binary (`.tools/php`) + wp-cli (`.tools/wp`) + WordPress on **SQLite** (official `sqlite-database-integration` plugin) in `site/`.
