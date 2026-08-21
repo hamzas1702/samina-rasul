@@ -33,6 +33,29 @@ $sr_wanted = array_values(
 
 $sr_wanted_slugs = array_map( 'sanitize_title', $sr_wanted );
 
+/*
+ * Put the size terms in body order.
+ *
+ * The `pa_size` attribute sorts by `menu_order`, which for a WooCommerce
+ * attribute term means the `order` term meta. Where that meta is missing
+ * WooCommerce falls back to sorting by name — which is how the live store came
+ * to offer "Customized, L, M, S, XL, XS". Alphabetical is a reasonable default
+ * for a list of fabrics and a nonsense one for a list of sizes, so the order is
+ * stated here rather than left to chance.
+ */
+foreach ( $sr_wanted_slugs as $sr_position => $sr_slug ) {
+	$sr_term = get_term_by( 'slug', $sr_slug, 'pa_size' );
+
+	if ( ! $sr_term instanceof WP_Term ) {
+		continue;
+	}
+
+	if ( (string) get_term_meta( $sr_term->term_id, 'order', true ) !== (string) $sr_position ) {
+		update_term_meta( $sr_term->term_id, 'order', $sr_position );
+		printf( "  order %-12s -> %d\n", $sr_term->name, $sr_position );
+	}
+}
+
 $sr_products = get_posts(
 	array(
 		'post_type'      => 'product',

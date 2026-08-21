@@ -7678,3 +7678,31 @@ a.sr-contact__value:hover { color: var(--sr-sand); }
 	text-decoration: underline;
 	text-underline-offset: 3px;
 }
+
+/* ============================================================
+   Block checkout / cart buttons — the house colour
+
+   WordPress prints its global styles as an inline block in <head> with the
+   selector `:root :where(.wp-element-button)`. `:where()` contributes nothing,
+   so that rule scores exactly the same as a single class — and it is printed
+   *after* the theme stylesheet, so on a tie it wins. The Place Order button,
+   the single most important control in the shop, was therefore rendering in
+   core's #333 charcoal while every other button on the site was burgundy.
+   Naming .wp-element-button alongside the component class takes the specificity
+   to two classes, which settles it without an !important.
+   ============================================================ */
+.wp-element-button.wc-block-cart__submit-button,
+.wp-element-button.wc-block-components-checkout-place-order-button {
+	background-color: var(--sr-burgundy);
+	border-color: var(--sr-burgundy);
+	color: var(--sr-cream);
+	border-radius: var(--sr-radius-md);
+}
+.wp-element-button.wc-block-cart__submit-button:hover,
+.wp-element-button.wc-block-cart__submit-button:focus-visible,
+.wp-element-button.wc-block-components-checkout-place-order-button:hover,
+.wp-element-button.wc-block-components-checkout-place-order-button:focus-visible {
+	background-color: var(--sr-burgundy-soft);
+	border-color: var(--sr-burgundy-soft);
+	color: var(--sr-cream);
+}
