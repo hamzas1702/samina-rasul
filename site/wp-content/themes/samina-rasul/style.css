@@ -5832,7 +5832,19 @@ input[type="submit"],
 	background: var(--sr-burgundy-deep);
 	color: var(--sr-cream);
 }
-.sr-lb-hero__bg { position: absolute; inset: 0; }
+/* Overhang beyond the parallax travel so scrolling never exposes an edge.
+   This layer carries data-sr-parallax="5", which shifts it ±5% of its own
+   height; at inset:0 it was exactly as tall as the masthead, so every scroll
+   slid it off and showed a band of the hero's near-black ground at the top and
+   the bottom. Same figures as .sr-archive__bg and .sr-hero__bg, which had
+   already been through this. */
+.sr-lb-hero__bg {
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: -10%;
+	height: 120%;
+}
 .sr-lb-hero__bg img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .sr-lb-hero__bg svg { position: absolute; inset: 0; margin: auto; width: 40%; opacity: .3; color: var(--sr-sand); }
 .sr-lb-hero__scrim {
@@ -6868,7 +6880,16 @@ a.sr-contact__value:hover { color: var(--sr-sand); }
 	color: var(--sr-cream);
 	overflow: hidden;
 }
-.sr-about-hero__bg { position: absolute; inset: 0; z-index: 0; }
+/* Same overhang, same reason as .sr-lb-hero__bg above: this one is also
+   data-sr-parallax="5" and was also pinned at inset:0. */
+.sr-about-hero__bg {
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: -10%;
+	height: 120%;
+	z-index: 0;
+}
 .sr-about-hero__img {
 	width: 100%;
 	height: 100%;
